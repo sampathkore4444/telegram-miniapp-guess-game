@@ -962,11 +962,11 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
 ```
 ┌─────────┐    betting    ┌─────────┐    lock    ┌─────────┐    rolling    ┌──────────────┐
 │  INIT   │ ────────────► │  OPEN   │ ─────────► │ LOCKED  │ ────────────► │   ROLLING    │
-└─────────┘               └─────────┘            └─────────┘                └──────┬───────┘
+└─────────┘               └─────────┘            └─────────┘               └──────┬───────┘
                                                                                       │
                                               ┌─────────┐    settle    ┌──────────────┴───────┐
                                               │ RESULT  │ ◄─────────── │                      │
-                                              │ CALC    │             │                      ▼
+                                              │ CALC    │              │                      ▼
                                               └─────────┘             ┌─────────┐
                                                                            │ close   ┌─────────┐
                                                                            └────────►│ CLOSED  │
@@ -1127,13 +1127,124 @@ class TokenBucket {
 
 ### 16.5 Concurrency Control
 
-#### Optimistic Locking for Bets
+#### Optimistic Locking - Detailed Explanation
+
+**What is Optimistic Locking?**
+
+Optimistic Locking is a concurrency control strategy where you:
+1. Read data without locking
+2. Track a version number
+3. When updating, check if version changed
+4. If changed → retry or fail
+5. If unchanged → update and increment version
+
+**Why Use It for Betting?**
+
+In a high-traffic game:
+- Multiple users might bet simultaneously
+- Reading balance then updating can cause race conditions
+- Optimistic locking prevents double-spending without slow locks
+
+**The Race Condition Problem (Without Locking):**
+
+```
+Time    User A                    User B                   Database
+ │       │                        │                         │
+ ├─READ: balance = 1000          │                         │
+ ├─READ: balance = 1000          │                         │
+ │       │                        │                         │
+ ├─BET: 100, new = 900            │                         │
+ │       │                        │                         │
+ │       │                        ├─BET: 100, new = 900    │
+ │       │                        │                         │
+ │       │                        │    ❌ BOTH SUCCEED!    │
+ │       │                        │    User A: 900 (wrong) │
+ │       │                        │    User B: 900 (wrong) │
+ │       │                        │    Should be: 800      │
+```
+
+**The Solution (With Optimistic Locking):**
+
+```
+Time    User A                    User B                   Database
+ │       │                        │                         │
+ ├─READ: balance = 1000           │                         │
+ │       version = 1               │                         │
+ ├─READ: balance = 1000           │                         │
+ │       version = 1               │                         │
+ │       │                        │                         │
+ ├─UPDATE: WHERE version = 1      │                         │
+ │       SET balance = 900        │                         │
+ │       SET version = 2          │                         │
+ │       ✓ SUCCESS                │                         │
+ │       │                        ├─UPDATE: WHERE version=1 │
+ │       │                        │    ❌ FAILS!            │
+ │       │                        │    Version changed     │
+ │       │                        │    Retry with new read │
+```
+
+**Implementation with Prisma:**
+
+```javascript
+// 1. Add version field to User model
+model User {
+  id          String  @id @default(uuid())
+  telegramId  BigInt  @unique
+  totalCoins  Int
+  version     Int     @default(0)  // Version for optimistic locking
+  // ...
+}
+
+// 2. Place bet with optimistic locking
+async function placeBet(userId, roundId, amount, choice) {
+  return await prisma.$transaction(async (tx) => {
+    // Read current user state
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+    });
+
+    // Check balance
+    if (user.totalCoins < amount) {
+      throw new Error('Insufficient balance');
+    }
+
+    // Try atomic update with version check
+    try {
+      const updated = await tx.user.updateMany({
+        where: {
+          id: userId,
+          version: user.version,  // ← Key: check version
+        },
+        data: {
+          totalCoins: { decrement: amount },
+          version: { increment: 1 },  // ← Increment version
+        },
+      });
+
+      // If no rows updated, version changed → conflict
+      if (updated.count === 0) {
+        throw new Error('Balance changed. Please retry.');
+      }
+
+    } catch (error) {
+      // Handle concurrent modification
+      throw new Error('Another bet in progress. Please retry.');
+    }
+
+    // Create bet record
+    return await tx.bet.create({
+      data: { userId, roundId, amount, choice },
+    });
+  });
+}
+```
+
+**Alternative: Prisma Built-in Transaction (Simpler):**
 
 ```javascript
 async function placeBet(userId, roundId, amount, choice) {
-  // Start transaction
   return await prisma.$transaction(async (tx) => {
-    // Get current balance with lock
+    // Prisma handles isolation internally
     const user = await tx.user.findUnique({
       where: { id: userId },
     });
@@ -1142,19 +1253,32 @@ async function placeBet(userId, roundId, amount, choice) {
       throw new Error('Insufficient balance');
     }
 
-    // Atomic update
+    // Atomic decrement (database handles locking)
     await tx.user.update({
       where: { id: userId },
       data: { totalCoins: { decrement: amount } },
     });
 
-    // Create bet
     return await tx.bet.create({
       data: { userId, roundId, amount, choice },
     });
   });
 }
 ```
+
+**Optimistic vs Pessimistic Locking:**
+
+| Aspect | Optimistic | Pessimistic |
+|--------|------------|-------------|
+| Locking | No lock, check version | Lock before read |
+| Conflict detection | On update | On read |
+| Performance | Better for low contention | Better for high contention |
+| Latency | Lower (no wait) | Higher (may wait) |
+| Use case | Betting, inventory | Financial transactions |
+
+**For Our Game:**
+
+Prisma's `$transaction()` uses **serializable isolation** which provides atomicity without needing explicit optimistic locking. For extremely high traffic, you can add explicit version checking as shown above.
 
 ### 16.6 Security Measures
 
