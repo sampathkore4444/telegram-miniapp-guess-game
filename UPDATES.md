@@ -460,3 +460,36 @@ The bot is required for:
 - Users to discover and play your game
 
 The complete documentation now covers everything from creating the bot to deploying and running the game!
+
+
+
+create one more section 16. System Design & Data structures & Algorithms used
+
+✅ Added **Section 16: System Design & Data Structures & Algorithms** to END-TO-END-FLOW.md
+
+## What's Included in Section 16:
+
+### 🏗️ System Design
+- Scalability architecture diagram
+- Horizontal scaling strategy
+- Load balancing approach
+
+### 📊 Data Structures
+- **Game State Machine** - Phase transitions diagram
+- **Redis Data Structures** - Keys, types, examples
+- **PostgreSQL Models** - ER relationships
+
+### ⚡ Algorithms
+- **Dice Rolling** - Crypto-secure random (O(1))
+- **Winner Determination** - BIG/SMALL logic (O(1))
+- **Payout Calculation** - Win/loss computation (O(1))
+- **Leaderboard Ranking** - Redis ZSET operations (O(log N))
+- **Rate Limiting** - Token bucket algorithm
+
+### 🎯 Additional Topics
+- Cache-aside pattern
+- Concurrency control (optimistic locking)
+- Security measures (auth flow, protection)
+- Performance optimizations (indexing, connection pooling)
+
+The documentation now has **16 comprehensive sections**!

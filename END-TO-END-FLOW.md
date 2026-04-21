@@ -19,6 +19,7 @@
 13. [Environment Variables](#13-environment-variables)
 14. [Feature Explanations](#14-feature-explanations)
 15. [Telegram Bot Setup](#15-telegram-bot-setup)
+16. [System Design & Data Structures & Algorithms](#16-system-design--data-structures--algorithms)
 
 ---
 
@@ -908,6 +909,320 @@ For production, set webhook:
 ```bash
 curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
   -d "url=https://your-domain.com/api/telegram/webhook"
+```
+
+---
+
+---
+
+## 16. System Design & Data Structures & Algorithms
+
+### 16.1 System Design Principles
+
+#### Scalability Architecture
+
+```
+                        ┌─────────────────────────────────────────┐
+                        │            LOAD BALANCER                │
+                        │         (Nginx/Traefik)                │
+                        └──────────────┬──────────────────────────┘
+                                       │
+              ┌────────────────────────┼────────────────────────┐
+              │                        │                        │
+              ▼                        ▼                        ▼
+    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+    │   Backend #1    │    │   Backend #2    │    │   Backend #3    │
+    │   (Node.js)    │    │   (Node.js)    │    │   (Node.js)    │
+    └────────┬────────┘    └────────┬────────┘    └────────┬────────┘
+             │                      │                      │
+             └──────────────────────┼──────────────────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                    │                               │
+                    ▼                               ▼
+           ┌───────────────┐               ┌───────────────┐
+           │   PostgreSQL  │               │     Redis     │
+           │  (Primary DB) │               │    (Cache)   │
+           └───────────────┘               └───────────────┘
+```
+
+#### Horizontal Scaling Strategy
+
+| Component | Strategy | Implementation
+|-----------|----------|----------------
+| Backend | Stateless | JWT auth, Redis session
+| Database | Read Replicas | PostgreSQL replication
+| Cache | Distributed | Redis Cluster
+| WebSocket | Sticky Sessions | Redis Pub/Sub for broadcast
+
+### 16.2 Data Structures
+
+#### Game State Machine
+
+```
+┌─────────┐    betting    ┌─────────┐    lock    ┌─────────┐    rolling    ┌──────────────┐
+│  INIT   │ ────────────► │  OPEN   │ ─────────► │ LOCKED  │ ────────────► │   ROLLING    │
+└─────────┘               └─────────┘            └─────────┘                └──────┬───────┘
+                                                                                      │
+                                              ┌─────────┐    settle    ┌──────────────┴───────┐
+                                              │ RESULT  │ ◄─────────── │                      │
+                                              │ CALC    │             │                      ▼
+                                              └─────────┘             ┌─────────┐
+                                                                           │ close   ┌─────────┐
+                                                                           └────────►│ CLOSED  │
+                                                                                    └─────────┘
+```
+
+#### Redis Data Structures
+
+| Key | Type | Example | Purpose |
+|-----|------|---------|---------|
+| `player:{id}:balance` | String | "1000" | Quick balance access |
+| `round:{id}` | Hash | {phase, pool, bets} | Round state |
+| `leaderboard:global` | Sorted Set | {user1: 5000, user2: 3000} | Rankings |
+| `round:active` | String | "round_123" | Current round |
+| `game:bets:{round}` | Set | [bet1, bet2, bet3] | Round bets |
+
+#### PostgreSQL Data Models
+
+```
+User ──────► Bet ──────► GameRound
+  │                   ▲
+  │                   │
+  └─────► Transaction │
+```
+
+- **User**: Player account (one-to-many with Bet, Transaction)
+- **GameRound**: Each game round (one-to-many with Bet)
+- **Bet**: Individual bet placed by user (many-to-one with User, GameRound)
+- **Transaction**: Ledger of all balance changes (many-to-one with User)
+
+### 16.3 Algorithms
+
+#### 16.3.1 Dice Rolling Algorithm
+
+```javascript
+// Crypto-secure random number generation
+function rollDice() {
+  // Use crypto.getRandomValues() for true randomness
+  const array = new Uint32Array(1);
+  crypto.getRandomValues(array);
+  
+  // Map to 1-6 range
+  const dice = (array[0] % 6) + 1;
+  return dice;
+}
+```
+
+**Complexity**: O(1)
+
+**Fairness**: Uses `crypto.getRandomValues()` for cryptographically secure randomness, ensuring unbiased results.
+
+#### 16.3.2 Winner Determination
+
+```javascript
+// BIG = 4, 5, 6 (three faces)
+// SMALL = 1, 2, 3 (three faces)
+const BIG_RANGE = [4, 5, 6];
+const SMALL_RANGE = [1, 2, 3];
+
+function determineWinner(dice) {
+  return BIG_RANGE.includes(dice) ? 'BIG' : 'SMALL';
+}
+```
+
+**Complexity**: O(1)
+
+#### 16.3.3 Payout Calculation
+
+```javascript
+function calculatePayout(betAmount, betChoice, winner) {
+  if (betChoice === winner) {
+    return {
+      win: true,
+      reward: betAmount * PAYOUT_MULTIPLIER, // 2x
+      netProfit: betAmount * (PAYOUT_MULTIPLIER - 1) // 1x
+    };
+  }
+  return {
+    win: false,
+    reward: 0,
+    netProfit: -betAmount
+  };
+}
+```
+
+**Complexity**: O(1)
+
+#### 16.3.4 Leaderboard Ranking (ZSET Operations)
+
+```javascript
+// Redis Sorted Set operations
+await redis.zadd('leaderboard:global', score, userId);
+await redis.zrevrange('leaderboard:global', 0, 9, 'WITHSCORES');
+await redis.zrevrank('leaderboard:global', userId);
+```
+
+**Time Complexity**:
+- Add score: O(log N)
+- Get top N: O(log N + M)
+- Get rank: O(log N)
+
+#### 16.3.5 Rate Limiting (Token Bucket)
+
+```javascript
+// Token bucket algorithm for rate limiting
+class TokenBucket {
+  constructor(capacity, refillRate) {
+    this.capacity = capacity;      // Max tokens
+    this.tokens = capacity;        // Current tokens
+    this.refillRate = refillRate;  // Tokens per second
+    this.lastRefill = Date.now();
+  }
+
+  consume(tokens = 1) {
+    this.refill();
+    if (this.tokens >= tokens) {
+      this.tokens -= tokens;
+      return true; // Allowed
+    }
+    return false; // Rate limited
+  }
+
+  refill() {
+    const now = Date.now();
+    const elapsed = (now - this.lastRefill) / 1000;
+    this.tokens = Math.min(
+      this.capacity,
+      this.tokens + elapsed * this.refillRate
+    );
+    this.lastRefill = now;
+  }
+}
+```
+
+### 16.4 Caching Strategy
+
+#### Cache-Aside Pattern
+
+```
+┌─────────┐    request    ┌─────────┐    miss    ┌────────────┐
+│ Client  │ ────────────► │  Cache  │ ──────────► │  Database  │
+└─────────┘               └────┬────┘             └────────────┘
+                                │
+                      ┌─────────┴─────────┐
+                      │ cache hit         │
+                      ▼                   ▼
+                 Return data        Store & return
+```
+
+#### Cache Invalidation
+
+| Data Type | TTL | Invalidation |
+|-----------|-----|--------------|
+| User balance | 0 (no cache) | Real-time |
+| Game state | 1 second | On phase change |
+| Leaderboard | 30 seconds | On bet settlement |
+| User profile | 5 minutes | On update |
+
+### 16.5 Concurrency Control
+
+#### Optimistic Locking for Bets
+
+```javascript
+async function placeBet(userId, roundId, amount, choice) {
+  // Start transaction
+  return await prisma.$transaction(async (tx) => {
+    // Get current balance with lock
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (user.totalCoins < amount) {
+      throw new Error('Insufficient balance');
+    }
+
+    // Atomic update
+    await tx.user.update({
+      where: { id: userId },
+      data: { totalCoins: { decrement: amount } },
+    });
+
+    // Create bet
+    return await tx.bet.create({
+      data: { userId, roundId, amount, choice },
+    });
+  });
+}
+```
+
+### 16.6 Security Measures
+
+#### Authentication Flow
+
+```
+┌─────────┐    initData    ┌─────────┐    verify    ┌─────────────┐
+│ Telegram│ ──────────────►│ Backend │ ────────────►│ Telegram API│
+│  Mini   │                │         │               │   (Verify)  │
+│  App    │◄───────────────│         │◄──────────────│             │
+└─────────┘    JWT Token   └─────────┘   Success    └─────────────┘
+```
+
+#### Security Checklist
+
+| Measure          | Implementation                     |
+|------------------|------------------------------------|
+| XSS Protection   | Input sanitization, CSP headers    |
+| CSRF             | Same-origin, JWT in headers        |
+| Rate Limiting    | Token bucket per user              |
+| SQL Injection    | Prisma ORM (parameterized queries) |
+| Input Validation | Zod schemas                        |
+| Bot Protection   | Telegram CAPTCHA integration       |
+
+### 16.7 Performance Optimizations
+
+#### Database Indexing
+
+```prisma
+model User {
+  id          String  @id @default(uuid())
+  telegramId  BigInt  @unique  // Index for fast lookup
+  totalCoins  Int
+  // ...
+}
+
+model Bet {
+  id        String  @id @default(uuid())
+  userId    String  // Index
+  roundId   String  // Index
+  amount    Int
+  // ...
+
+  @@index([userId, roundId])
+}
+
+model GameRound {
+  id        String  @id
+  phase     String  // Index
+  createdAt DateTime @default(now())
+  // ...
+
+  @@index([phase, createdAt])
+}
+```
+
+#### Connection Pooling
+
+```javascript
+// Prisma connection pool
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+  log: ['error', 'warn'],
+});
 ```
 
 ---
