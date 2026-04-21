@@ -1,0 +1,88 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id          String   @id @default(uuid())
+  telegramId  BigInt   @unique
+  username    String
+  totalCoins  Int      @default(1000)
+  level       Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  transactions Transaction[]
+  bets          Bet[]
+}
+
+// Game Round model
+model GameRound {
+  id           String   @id
+  phase        String   @default("OPEN_BETS")
+  diceResult   Int?
+  totalPool   Int      @default(0)
+  bigBets     Int      @default(0)
+  smallBets   Int      @default(0)
+  playerCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  closedAt    DateTime?
+
+  // Relations
+  bets         Bet[]
+}
+
+// Bet model
+model Bet {
+  id        String   @id @default(uuid())
+  roundId   String
+  userId    String
+  amount   Int
+  choice   String   // "BIG" or "SMALL"
+  payout   Int      @default(0)
+  result   String?  // "WIN" or "LOSE"
+  timestamp DateTime @default(now())
+
+  // Relations
+  round    GameRound @relation(fields: [roundId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@index([roundId])
+  @@index([userId])
+}
+
+// Transaction model
+model Transaction {
+  id           String   @id @default(uuid())
+  userId       String
+  roundId      String?
+  amount      Int
+  type        String   // "BET", "WIN", "LOSE", "BONUS"
+  balanceAfter Int
+  timestamp   DateTime @default(now())
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([timestamp])
+}
+
+// Daily Leaderboard Snapshot
+model DailyLeaderboard {
+  id          Int      @id @default(autoincrement())
+  date       DateTime
+  topPlayers String   // JSON string of top players
+  createdAt  DateTime @default(now())
+
+  @@index([date])
+}
