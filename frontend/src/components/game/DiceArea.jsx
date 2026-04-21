@@ -1,170 +1,170 @@
 import React, { useState, useEffect } from "react";
-import { clsx } from "clsx";
 
 /**
- * DiceArea Component - Animated dice display with spinning effect
- * @param {Object} props
- * @param {number} props.diceValue - Current dice value (1-6)
- * @param {string} props.phase - Current game phase
- * @param {string} props.winner - Winner if round ended
+ * DiceArea - Animated dice display
  */
 function DiceArea({ diceValue, phase, winner }) {
   const [displayValue, setDisplayValue] = useState(null);
-  const [isSpinning, setIsSpinning] = useState(false);
-  const [rotation, setRotation] = useState(0);
+  const [isRolling, setIsRolling] = useState(false);
+  const [resultDots, setResultDots] = useState([]);
 
-  const isRolling = phase === "ROLLING";
+  const isRollingPhase = phase === "ROLLING";
   const hasResult = phase === "RESULT_CALCULATED" || phase === "SETTLEMENT";
 
   // Handle rolling animation
   useEffect(() => {
-    if (isRolling) {
-      setIsSpinning(true);
+    if (isRollingPhase) {
+      setIsRolling(true);
       setDisplayValue(null);
 
-      // Rapidly change display values to simulate spinning
-      const spinInterval = setInterval(() => {
+      // Rapid random display with shake effect
+      const interval = setInterval(() => {
         setDisplayValue(Math.floor(Math.random() * 6) + 1);
-        setRotation((prev) => prev + 180);
       }, 100);
 
-      // Stop spinning after 2-3 seconds and show final value
-      const stopTimeout = setTimeout(() => {
-        clearInterval(spinInterval);
-        setIsSpinning(false);
-        setDisplayValue(diceValue);
-        setRotation((prev) => prev + 180);
+      // Stop after 2.5 seconds
+      setTimeout(() => {
+        clearInterval(interval);
+        setIsRolling(false);
+        setDisplayValue(diceValue || Math.floor(Math.random() * 6) + 1);
       }, 2500);
 
-      return () => {
-        clearInterval(spinInterval);
-        clearTimeout(stopTimeout);
-      };
-    } else if (diceValue && !isRolling) {
+      return () => clearInterval(interval);
+    } else if (diceValue) {
       setDisplayValue(diceValue);
     }
-  }, [isRolling, diceValue]);
+  }, [isRollingPhase, diceValue]);
 
-  // Get dice faces
-  const diceFaces = {
-    1: [
-      [0, 0, 0],
-      [0, 1, 0],
-      [0, 0, 0],
-    ],
-    2: [
-      [1, 0, 0],
-      [0, 1, 0],
-      [0, 0, 1],
-    ],
-    3: [
-      [1, 0, 0],
-      [0, 1, 0],
-      [1, 0, 1],
-    ],
-    4: [
-      [1, 0, 1],
-      [0, 0, 0],
-      [1, 0, 1],
-    ],
-    5: [
-      [1, 0, 1],
-      [0, 1, 0],
-      [1, 0, 1],
-    ],
-    6: [
-      [1, 0, 1],
-      [1, 0, 1],
-      [1, 0, 1],
-    ],
-  };
-
-  // Get dot positions for display
-  const getDots = (face) => {
-    const dots = [];
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 3; col++) {
-        if (face[row][col]) {
-          dots.push(
-            <span
-              key={`${row}-${col}`}
-              className="w-3 h-3 bg-white rounded-full shadow-sm"
-              style={{
-                position: "absolute",
-                top: `${20 + row * 30}%`,
-                left: `${20 + col * 30}%`,
-              }}
-            />,
-          );
+  // Calculate result dots
+  useEffect(() => {
+    if (displayValue) {
+      const faces = {
+        1: [[0, 1, 0]],
+        2: [
+          [1, 0, 0],
+          [0, 0, 1],
+        ],
+        3: [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+        ],
+        4: [
+          [1, 0, 1],
+          [0, 0, 0],
+          [1, 0, 1],
+        ],
+        5: [
+          [1, 0, 1],
+          [0, 1, 0],
+          [1, 0, 1],
+        ],
+        6: [
+          [1, 0, 1],
+          [1, 0, 1],
+          [1, 0, 1],
+        ],
+      };
+      const allDots = [];
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+          if (
+            faces[displayValue] &&
+            faces[displayValue][row] &&
+            faces[displayValue][row][col]
+          ) {
+            allDots.push({ r: row, c: col });
+          }
         }
       }
+      setResultDots(allDots);
     }
-    return dots;
-  };
+  }, [displayValue]);
+
+  // Get dot positions
+  const getDotStyle = (r, c) => ({
+    position: "absolute",
+    top: `${20 + r * 30}%`,
+    left: `${20 + c * 30}%`,
+  });
 
   return (
-    <div className="relative w-40 h-40 mx-auto">
-      {/* Dice container with 3D spinning animation */}
-      <div
-        className={clsx(
-          "w-full h-full bg-gradient-to-br from-white to-gray-200 rounded-2xl shadow-2xl flex items-center justify-center",
-          isSpinning && "animate-bounce",
-        )}
-        style={{
-          boxShadow:
-            "0 10px 40px rgba(0, 0, 0, 0.4), inset 0 -5px 20px rgba(0, 0, 0, 0.1)",
-          transform: `perspective(500px) rotateX(${rotation}deg)`,
-          transition: isSpinning
-            ? "transform 0.1s linear"
-            : "transform 0.5s ease-out",
-        }}
-      >
-        {/* Show dice face or question mark */}
-        {displayValue ? (
-          <div className="relative w-24 h-24">
-            {getDots(diceFaces[displayValue])}
-          </div>
-        ) : (
-          <span
-            className={clsx(
-              "text-5xl font-bold text-gray-400",
-              isSpinning && "animate-pulse",
-            )}
-          >
-            ?
-          </span>
-        )}
-      </div>
-
-      {/* Result indicator */}
-      {hasResult && (
-        <div
-          className={clsx(
-            "absolute -top-2 -right-2 px-3 py-1 rounded-full text-sm font-bold animate-scaleIn",
-            winner === "BIG"
-              ? "bg-red-500 text-white"
-              : "bg-blue-500 text-white",
-          )}
-        >
-          {winner}
+    <div className="relative w-48 h-48 mx-auto">
+      {/* Rolling indicator */}
+      {isRollingPhase && (
+        <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-gold-500 font-bold animate-pulse">
+          🎲 ROLLING...
         </div>
       )}
 
-      {/* Win/Lose overlay */}
-      {hasResult && (
+      {/* The Dice - large and clear */}
+      <div
+        className={`
+          w-36 h-36 mx-auto rounded-2xl flex items-center justify-center
+          transition-all duration-300
+          ${isRollingPhase ? "bg-gradient-to-br from-yellow-100 to-yellow-300 shadow-[0_0_30px_rgba(251,191,36,0.6)]" : "bg-gradient-to-br from-white to-gray-200 shadow-2xl"}
+          ${isRollingPhase ? "animate-spin" : ""}
+        `}
+        style={{
+          transform: isRollingPhase
+            ? "rotateX(15deg) scale(1.1)"
+            : "rotateX(0deg) scale(1)",
+          boxShadow: isRollingPhase
+            ? "0 0 40px rgba(251, 191, 36, 0.8)"
+            : "0 15px 40px rgba(0, 0, 0, 0.5)",
+        }}
+      >
+        {displayValue ? (
+          // Show dice dots
+          <div className="relative w-24 h-24">
+            {resultDots.map((dot, i) => (
+              <div
+                key={i}
+                className="absolute w-5 h-5 bg-gray-800 rounded-full shadow-inner"
+                style={getDotStyle(dot.r, dot.c)}
+              />
+            ))}
+          </div>
+        ) : isRollingPhase ? (
+          // Rolling - show random numbers
+          <span className="text-5xl font-bold text-gray-700 animate-pulse">
+            {Math.floor(Math.random() * 6) + 1}
+          </span>
+        ) : (
+          // Waiting
+          <span className="text-5xl font-bold text-gray-400">?</span>
+        )}
+      </div>
+
+      {/* Result badge */}
+      {hasResult && winner && (
+        <div className="absolute -top-2 -right-2 z-10">
+          <div
+            className={`
+            px-4 py-2 rounded-full text-xl font-bold animate-scaleIn
+            ${winner === "BIG" ? "bg-red-500 text-white" : "bg-blue-500 text-white"}
+          `}
+          >
+            {winner === "BIG" ? "🔴 BIG" : "🔵 SMALL"}
+          </div>
+        </div>
+      )}
+
+      {/* Result overlay */}
+      {hasResult && winner && (
         <div
-          className={clsx(
-            "absolute inset-0 flex items-center justify-center rounded-2xl text-2xl font-bold animate-fadeIn",
-            winner === "BIG" ? "bg-red-500/20" : "bg-blue-500/20",
-          )}
+          className={`
+          absolute inset-0 flex items-center justify-center rounded-2xl text-2xl font-bold animate-fadeIn
+          ${winner === "BIG" ? "bg-red-500/20" : "bg-blue-500/20"}
+        `}
         >
           <span
-            className={clsx(
-              "text-4xl font-bold",
-              winner === "BIG" ? "text-red-500" : "text-blue-500",
-            )}
+            className={`
+            text-3xl font-bold
+            ${winner === "BIG" ? "text-red-500" : "text-blue-500"}
+          `}
           >
-            {winner === "BIG" ? "🎉 BIG WIN!" : "🎉 SMALL WIN!"}
+            🎉 {winner === "BIG" ? "BIG WINS!" : "SMALL WINS!"}
           </span>
         </div>
       )}
