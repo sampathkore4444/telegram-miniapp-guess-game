@@ -10,13 +10,16 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: false,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ["react", "react-dom", "react-router-dom"],
-          socket: ["socket.io-client"],
-        },
-      },
-    },
+  },
+  // Force these packages to be bundled (not externalized)
+  ssr: {
+    noExternal: ["react-router-dom"],
+  },
+  optimizeDeps: {
+    include: ["react", "react-dom", "react-router-dom"],
+    force: true,
+  },
+  resolve: {
+    dedupe: ["react", "react-dom", "react-router-dom"],
   },
 });
