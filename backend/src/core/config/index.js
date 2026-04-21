@@ -81,6 +81,15 @@ module.exports = {
     bets: (roundId) => `round:${roundId}:bets`,
   },
 
+  // Leaderboard Configuration
+  leaderboard: {
+    refreshInterval: parseInt(
+      process.env.LEADERBOARD_REFRESH_INTERVAL || "60000",
+      10,
+    ),
+    topCount: parseInt(process.env.LEADERBOARD_TOP_COUNT || "100", 10),
+  },
+
   // Game Phases
   gamePhases: {
     INIT: "INIT",
