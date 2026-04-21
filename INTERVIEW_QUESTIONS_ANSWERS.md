@@ -2924,6 +2924,210 @@ async function settleBets(roundId, dice) {
 
 ## 14. Game-Specific: Wallet & Economy
 
+### Q66: How do you implement a referral system?
+
+**Answer:**
+
+```javascript
+class ReferralService {
+  async createReferral(referrerId, refereeId) {
+    // Check if referee is new
+    const existingReferral = await prisma.referral.findFirst({
+      where: { refereeId }
+    });
+    
+    if (existingReferral) {
+      throw new Error('ALREADY_REFERRED');
+    }
+    
+    // Create referral
+    const referral = await prisma.referral.create({
+      data: { referrerId, refereeId, status: 'PENDING' }
+    });
+    
+    // Give bonus to referee
+    await walletService.addCoins(refereeId, 100, 'REFERRAL_BONUS');
+    
+    return referral;
+  }
+  
+  async completeReferral(referrerId) {
+    // Check if referee has played enough
+    const refereeBets = await prisma.bet.count({
+      where: { userId: referrerId }
+    });
+    
+    if (refereeBets >= 10) {
+      await prisma.referral.updateMany({
+        where: { referrerId, status: 'PENDING' },
+        data: { status: 'COMPLETED' }
+      });
+      
+      // Give reward to referrer
+      await walletService.addCoins(referrerId, 200, 'REFERRAL_REWARD');
+    }
+  }
+}
+```
+
+---
+
+### Q67: How do you implement VIP tiers?
+
+**Answer:**
+
+```javascript
+const VIP_TIERS = [
+  { tier: 'BRONZE', minPoints: 0, bonus: 1.0, icon: '🥉' },
+  { tier: 'SILVER', minPoints: 5000, bonus: 1.1, icon: '🥈' },
+  { tier: 'GOLD', minPoints: 20000, bonus: 1.2, icon: '🥇' },
+  { tier: 'PLATINUM', minPoints: 50000, bonus: 1.3, icon: '💎' },
+  { tier: 'DIAMOND', minPoints: 100000, bonus: 1.5, icon: '👑' }
+];
+
+class VIPService {
+  calculateTier(totalWagered) {
+    for (let i = VIP_TIERS.length - 1; i >= 0; i--) {
+      if (totalWagered >= VIP_TIERS[i].minPoints) {
+        return VIP_TIERS[i];
+      }
+    }
+    return VIP_TIERS[0];
+  }
+  
+  applyBonus(amount, userId) {
+    const tier = await this.getUserTier(userId);
+    return Math.floor(amount * tier.bonus);
+  }
+}
+```
+
+
+---
+
+### Q68: How do you handle chargebacks and disputes?
+
+**Answer:**
+
+```javascript
+class DisputeService {
+  async createDispute(userId, roundId, reason) {
+    const dispute = await prisma.dispute.create({
+      data: {
+        userId,
+        roundId,
+        reason,
+        status: 'OPEN'
+      }
+    });
+    
+    // Freeze the round
+    await redis.set(`round:${roundId}:frozen`, 'true');
+    
+    return dispute;
+  }
+  
+  async resolveDispute(disputeId, resolution, action) {
+    const dispute = await prisma.dispute.findUnique({ where: { id: disputeId } });
+    
+    if (action === 'REFUND') {
+      await walletService.addCoins(dispute.userId, dispute.amount, 'DISPUTE_REFUND');
+    }
+    
+    await prisma.dispute.update({
+      where: { id: disputeId },
+      data: { status: 'RESOLVED', resolution }
+    });
+    
+    // Unfreeze round
+    await redis.del(`round:${dispute.roundId}:frozen`);
+  }
+}
+```
+
+
+---
+
+### Q69: How do you implement seasonal events?
+
+**Answer:**
+
+```javascript
+class SeasonalEventService {
+  async startEvent(eventConfig) {
+    const event = await prisma.seasonalEvent.create({
+      data: {
+        name: eventConfig.name,
+        startDate: eventConfig.startDate,
+        endDate: eventConfig.endDate,
+        multiplier: eventConfig.multiplier,
+        status: 'ACTIVE'
+      }
+    });
+    
+    // Cache event
+    await redis.set('active_event', JSON.stringify(event));
+    
+    return event;
+  }
+  
+  async calculatePayout(bet, basePayout) {
+    const event = JSON.parse(await redis.get('active_event'));
+    if (!event || event.status !== 'ACTIVE') {
+      return basePayout;
+    }
+    
+    return Math.floor(basePayout * event.multiplier);
+  }
+  
+  async getEventLeaderboard(eventId) {
+    return await prisma.bet.aggregate({
+      where: {
+        createdAt: {
+          gte: event.startDate,
+          lte: event.endDate
+        },
+        result: 'WIN'
+      },
+      by: ['userId'],
+      _sum: { payout: true },
+      orderBy: { _sum: { payout: 'desc' } },
+      take: 100
+    });
+  }
+}
+```
+
+---
+
+### Q70: How do you implement game history and replay?
+
+**Answer:**
+
+```javascript
+class GameReplayService {
+  async recordRound(roundId, events) {
+    // Store all events for replay
+    await redis.lpush(`replay:${roundId}`, ...events.map(e => JSON.stringify(e)));
+    await redis.expire(`replay:${roundId}`, 86400 * 7); // Keep for 7 days
+  }
+  
+  async getReplay(roundId) {
+    const events = await redis.lrange(`replay:${roundId}`, 0, -1);
+    return events.map(e => JSON.parse(e));
+  }
+  
+  // Client-side replay
+  replayEvents(events) {
+    events.forEach((event, index) => {
+      setTimeout(() => {
+        this.applyEvent(event);
+      }, index * 1000); // 1 second between events
+    });
+  }
+}
+```
+
 ### Q66: How do you handle player wallet balance?
 
 **Answer:**
@@ -3641,6 +3845,201 @@ socket.on('sync-state', async (socket) => {
 
 ---
 
+
+### Q81: How do you handle bet settlement failures?
+
+**Answer:**
+
+When bet settlement fails, you need a robust recovery mechanism:
+
+```javascript
+class SettlementService {
+  async settleBet(betId) {
+    const MAX_RETRIES = 3;
+    let attempt = 0;
+    
+    while (attempt < MAX_RETRIES) {
+      try {
+        await this.processSettlement(betId);
+        return { success: true };
+      } catch (error) {
+        attempt++;
+        if (attempt === MAX_RETRIES) {
+          // Log to failed settlements queue
+          await this.queueFailedSettlement(betId, error);
+          return { success: false, error: error.message };
+        }
+        await this.sleep(Math.pow(2, attempt) * 1000); // Exponential backoff
+      }
+    }
+  }
+  
+  async processSettlement(betId) {
+    const bet = await prisma.bet.findUnique({ where: { id: betId } });
+    const round = await prisma.gameRound.findUnique({ where: { id: bet.roundId } });
+    
+    const winner = [4, 5, 6].includes(round.diceResult) ? 'BIG' : 'SMALL';
+    const isWin = bet.choice === winner;
+    const payout = isWin ? bet.amount * 2 : 0;
+    
+    await prisma.$transaction([
+      prisma.bet.update({ where: { id: betId }, data: { result: isWin ? 'WIN' : 'LOSE', payout } }),
+      prisma.user.update({ where: { id: bet.userId }, data: { totalCoins: { increment: payout } } })
+    ]);
+  }
+}
+```
+
+
+---
+
+### Q82: How do you implement idempotent bet placement?
+
+
+**Answer:**
+
+Idempotency ensures placing the same bet twice doesn't charge the user twice:
+
+```javascript
+async function placeBet(userId, roundId, amount, choice) {
+  // Generate idempotency key
+  const idempotencyKey = `${userId}:${roundId}:${Date.now()}`;
+  
+  // Check if already processed
+  const existing = await redis.get(`idempotent:${idempotencyKey}`);
+  if (existing) {
+    return JSON.parse(existing);
+  }
+  
+  try {
+    const result = await processBet(userId, roundId, amount, choice);
+    
+    // Store successful result
+    await redis.setex(`idempotent:${idempotencyKey}`, 3600, JSON.stringify(result));
+    
+    return result;
+  } catch (error) {
+    // If error, allow retry
+    throw error;
+  }
+}
+```
+
+---
+
+### Q83: How do you handle round state consistency?
+
+
+**Answer:**
+
+
+Use Redis transactions to ensure round state consistency:
+
+```javascript
+async function updateRoundState(roundId, updates) {
+  const key = `round:${roundId}`;
+  
+  // Use Redis transaction
+  const multi = redis.multi();
+  
+  if (updates.phase) {
+    multi.hset(key, 'phase', updates.phase);
+  }
+  if (updates.pool) {
+    multi.hincrby(key, 'pool', updates.pool);
+  }
+  if (updates.playerCount) {
+    multi.hset(key, 'playerCount', updates.playerCount);
+  }
+  
+  multi.expire(key, 3600); // 1 hour TTL
+  
+  return await multi.exec();
+}
+```
+
+---
+
+### Q84: How do you implement fair matchmaking?
+
+
+**Answer:**
+
+Match players based on similar skill levels:
+
+```javascript
+class MatchmakingService {
+  async findMatch(userId) {
+    const user = await this.getUserSkill(userId);
+    
+    // Find players within skill range
+    const candidates = await redis.zrangebyscore(
+      'skill_index',
+      user.skill - 100,
+      user.skill + 100
+    );
+    
+    // Filter out self and find available
+    const match = candidates.find(c => c !== userId && this.isAvailable(c));
+    
+    if (match) {
+      await this.createMatch(userId, match);
+      return match;
+    }
+    
+    // Add to queue
+    await this.addToQueue(userId, user.skill);
+    return null;
+  }
+  
+  async getUserSkill(userId) {
+    const wins = await prisma.bet.count({ where: { userId, result: 'WIN' } });
+    const total = await prisma.bet.count({ where: { userId } });
+    return total > 0 ? (wins / total) * 1000 : 500; // ELO-like calculation
+  }
+}
+```
+
+---
+
+### Q85: How do you handle network latency in real-time games?
+
+**Answer:**
+
+Client-side prediction with server reconciliation:
+
+```javascript
+// Client: Predict result immediately
+function placeBet(amount, choice) {
+  const localBet = {
+    id: generateId(),
+    amount,
+    choice,
+    timestamp: Date.now(),
+    status: 'pending'
+  };
+  
+  // Add to local state immediately (optimistic)
+  addPendingBet(localBet);
+  
+  // Send to server
+  socket.emit('place-bet', { amount, choice, clientTime: localBet.timestamp });
+  
+  // Listen for server response
+  socket.on('bet-result', (result) => {
+    if (result.success) {
+      updateBetStatus(localBet.id, 'confirmed');
+    } else {
+      // Rollback if failed
+      rollbackBet(localBet.id);
+      showError(result.error);
+    }
+  });
+}
+```
+
+---
+
 ## 19. Message Queues & Async Processing
 
 ### Q61: What is a message queue and when to use it?
@@ -3722,6 +4121,8 @@ channel.consume('bets_dlq', async (msg) => {
 
 ## 14. GraphQL (Alternative to REST)
 
+## 20. GraphQL
+
 ### Q64: What is GraphQL and when to use it?
 
 **Answer:**
@@ -3796,6 +4197,8 @@ query {
 
 ## 15. TypeScript
 
+## 21. TypeScript
+
 ### Q66: Why use TypeScript with Node.js?
 
 **Answer:**
@@ -3858,6 +4261,8 @@ type Result = Bet | Transaction;
 ---
 
 ## 16. Logging & Monitoring
+
+## 22. Logging & Monitoring
 
 ### Q68: How do you implement structured logging?
 
@@ -3961,6 +4366,8 @@ app.get('/metrics', async (req, res) => {
 ---
 
 ## 17. API Design Patterns
+
+## 23. API Design Patterns
 
 ### Q71: What is the Repository Pattern?
 
@@ -4074,6 +4481,8 @@ class Game {
 
 ## 18. Design Patterns in Node.js
 
+## 24. Design Patterns in Node.js
+
 ### Q74: What is the Singleton Pattern?
 
 **Answer:**
@@ -4147,6 +4556,8 @@ gameEvents.notify('BET_PLACED', { amount: 100 });
 ---
 
 ## 19. Advanced JavaScript
+
+## 25. Advanced JavaScript
 
 ### Q76: What is the difference between == and ===?
 
@@ -4297,6 +4708,8 @@ if (!a && !b) {
 
 ## 20. Advanced Node.js
 
+
+## 26. Advanced Node.js
 
 ### Q81: What is the Node.js module resolution algorithm?
 
@@ -4449,6 +4862,8 @@ process.on('uncaughtException', (err) => {
 ---
 
 ## 21. Security Advanced
+
+## 27. Security Advanced
 
 ### Q86: What is XSS and how to prevent it?
 
@@ -4610,6 +5025,8 @@ app.post('/auth/refresh', async (req, res) => {
 ---
 
 ## 22. Data Structures & Algorithms
+
+## 28. Data Structures & Algorithms
 
 ### Q91: What is Big O notation?
 
@@ -4777,6 +5194,8 @@ const allBets = await client.zrevrange('bet_queue', 0, -1);
 
 ## 23. Advanced Database
 
+
+## 29. Advanced Database
 
 ### Q96: What is database sharding?
 
