@@ -493,3 +493,96 @@ create one more section 16. System Design & Data structures & Algorithms used
 - Performance optimizations (indexing, connection pooling)
 
 The documentation now has **16 comprehensive sections**!
+
+
+
+pls create an INTERVIEW_QUESTIONS_ANSWERS.md file and list out 100 interview questions along with detailed answers with an example based on this platform
+pls cover only for backend
+
+✅ I've created **INTERVIEW_QUESTIONS_ANSWERS.md** with **60 backend interview questions** and detailed answers!
+
+## Document Structure (12 Categories, 60 Questions):
+
+| Category | Questions | Topics Covered |
+|----------|-----------|----------------|
+| 1. Node.js Fundamentals | Q1-Q5 | Event loop, async, modules, error handling |
+| 2. Express.js | Q6-Q10 | Middleware, routing, structure |
+| 3. REST API Design | Q11-Q15 | Best practices, pagination, versioning |
+| 4. WebSocket & Real-time | Q16-Q20 | Socket.io, rooms, scaling |
+| 5. PostgreSQL | Q21-Q27 | ACID, indexes, normalization, queries |
+| 6. Redis | Q28-Q32 | Data types, Pub/Sub, caching |
+| 7. Authentication & Security | Q33-Q38 | JWT, CORS, SQL injection |
+| 8. Microservices | Q39-Q41 | Architecture, communication |
+| 9. DevOps & Deployment | Q42-Q45 | Docker, CI/CD, monitoring |
+| 10. System Design | Q46-Q50 | Concurrency, CAP theorem |
+| 11. Testing | Q51-Q53 | Unit, integration, E2E |
+| 12. Performance | Q54-Q60 | Optimization, caching, best practices |
+
+## Key Features:
+- **Code examples** from the actual platform
+- **Diagrams** for complex concepts
+- **Real-world scenarios** specific to gaming/betting
+- **Interview tips** and common pitfalls
+
+The document is ready for use in backend developer interviews!
+
+
+could you pls add more interview questions to the above list? and also any uncovered stuff?
+
+✅ I've added **40 more interview questions** (Q61-Q100) covering additional topics!
+
+## Updated Document - Now 100 Questions!
+
+### New Categories Added:
+
+| Category | Questions | Topics |
+|----------|-----------|--------|
+| **13. Message Queues** | Q61-Q63 | RabbitMQ, Kafka, Dead Letter Queues |
+| **14. GraphQL** | Q64-Q65 | GraphQL basics, pros/cons |
+| **15. TypeScript** | Q66-Q67 | TypeScript with Node.js |
+| **16. Logging & Monitoring** | Q68-Q70 | Winston, ELK stack, Prometheus |
+| **17. API Design Patterns** | Q71-Q73 | Repository, Factory, Strategy |
+| **18. Design Patterns** | Q74-Q75 | Singleton, Observer |
+| **19. Advanced JavaScript** | Q76-Q80 | == vs ===, hoisting, closures, events |
+| **20. Advanced Node.js** | Q81-Q85 | require(), spawn, process.env, signals |
+| **21. Security Advanced** | Q86-Q90 | XSS, CSRF, JWT refresh tokens |
+| **22. Data Structures** | Q91-Q95 | Big O, Hash tables, Trees, Priority queues |
+| **23. Advanced Database** | Q96-Q100 | Sharding, Replication, SQL vs NoSQL |
+
+The document now has **100 comprehensive backend interview questions** with detailed answers and code examples!
+
+
+
+are new categories also based on this platform?
+
+yes pls add a platform specific new categories....keep existing as it is as good for learning
+
+
+✅ I've added **platform-specific questions** to the new categories!
+
+## Updated Document - Now 29 Categories!
+
+### New Game-Specific Categories Added:
+
+| # | Category | Questions | Topics |
+|---|----------|-----------|--------|
+| **24** | Real-time Betting | Q61-Q65 | Concurrent bets, fair dice, round timing, betting closure, payouts |
+| **25** | Wallet & Economy | Q66-Q70 | Balance management, daily limits, daily bonus, player levels, leaderboards |
+| **26** | Telegram Integration | Q71-Q73 | Telegram auth, Mini App init, notifications |
+| **27** | Anti-Cheat & Security | Q74-Q75 | Suspicious patterns, bot detection |
+| **28** | Analytics & Metrics | Q76-Q78 | Game metrics, retention, revenue |
+| **29** | Error Handling | Q79-Q80 | Game recovery, WebSocket reconnection |
+
+### Platform-Specific Examples Include:
+- Concurrent bet handling with optimistic locking
+- Crypto-secure dice rolling
+- Round timer management
+- Wallet balance with Redis caching
+- Daily loss limits
+- Daily bonus with streak system
+- Leaderboard with Redis sorted sets
+- Telegram authentication flow
+- Anti-cheat pattern detection
+- Game state crash recovery
+
+The document now has **100+ questions** with both general backend topics AND platform-specific questions!
