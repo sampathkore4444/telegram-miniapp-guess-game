@@ -1150,17 +1150,17 @@ In a high-traffic game:
 ```
 Time    User A                    User B                   Database
  │       │                        │                         │
- ├─READ: balance = 1000          │                         │
- ├─READ: balance = 1000          │                         │
+ ├─READ: balance = 1000           │                         │
+ ├─READ: balance = 1000           │                         │
  │       │                        │                         │
  ├─BET: 100, new = 900            │                         │
  │       │                        │                         │
- │       │                        ├─BET: 100, new = 900    │
+ │       │                        ├─BET: 100, new = 900     │
  │       │                        │                         │
- │       │                        │    ❌ BOTH SUCCEED!    │
- │       │                        │    User A: 900 (wrong) │
- │       │                        │    User B: 900 (wrong) │
- │       │                        │    Should be: 800      │
+ │       │                        │    ❌ BOTH SUCCEED!     │
+ │       │                        │    User A: 900 (wrong)  │
+ │       │                        │    User B: 900 (wrong)  │
+ │       │                        │    Should be: 800       │
 ```
 
 **The Solution (With Optimistic Locking):**
@@ -1169,9 +1169,9 @@ Time    User A                    User B                   Database
 Time    User A                    User B                   Database
  │       │                        │                         │
  ├─READ: balance = 1000           │                         │
- │       version = 1               │                         │
+ │       version = 1              │                         │
  ├─READ: balance = 1000           │                         │
- │       version = 1               │                         │
+ │       version = 1              │                         │
  │       │                        │                         │
  ├─UPDATE: WHERE version = 1      │                         │
  │       SET balance = 900        │                         │
