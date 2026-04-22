@@ -2,11 +2,12 @@
  * useGame Hook - Simple game WITHOUT duplicates
  */
 import { useState, useCallback, useEffect, useRef } from "react";
+import { apiService } from "../services/api.service";
 
 export function useGame() {
   const [gameState, setGameState] = useState({
     phase: "OPEN_BETS",
-    roundId: "demo_1",
+    roundId: 1000,
     timeLeft: 15,
     diceValue: null,
     winner: null,
@@ -14,7 +15,12 @@ export function useGame() {
 
   const [balance, setBalance] = useState(1000);
   const [myBet, setMyBet] = useState(null);
+  const [history, setHistory] = useState([]);
   const [isConnected] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [demoHistory, setDemoHistory] = useState([]);
+  const [recentResults, setRecentResults] = useState([]); // Track recent dice results
+  const roundCounterRef = useRef(1000); // Start from round 1000
 
   const myBetRef = useRef(null);
   const balanceRef = useRef(1000);
@@ -75,10 +81,13 @@ export function useGame() {
         if (s.phase === "SETTLEMENT" && !timersRef.current.newRoundPending) {
           timersRef.current.newRoundPending = true;
 
-          // Process bet
+          // Process bet - track demo history
           const bet = myBetRef.current;
           if (bet && s.winner) {
-            if (bet.choice === s.winner) {
+            const isWin = bet.choice === s.winner;
+            const profit = isWin ? bet.amount : -bet.amount;
+
+            if (isWin) {
               balanceRef.current = balanceRef.current + bet.amount;
               setBalance(balanceRef.current);
               setMyBet({ ...bet, status: "WIN" });
@@ -87,15 +96,31 @@ export function useGame() {
               setMyBet({ ...bet, status: "LOSE" });
               console.log("❌ LOSE");
             }
+
+            // Add to demo history with simple round number
+            roundCounterRef.current += 1;
+            const demoEntry = {
+              round: roundCounterRef.current,
+              result: bet.choice,
+              dice: s.diceValue,
+              profit: profit,
+              timestamp: new Date().toISOString(),
+            };
+            setDemoHistory((prev) => [demoEntry, ...prev].slice(0, 20));
+
+            // Track recent dice result
+            const resultEntry = { dice: s.diceValue, result: s.winner };
+            setRecentResults((prev) => [resultEntry, ...prev].slice(0, 10));
           }
 
           // New round
           setTimeout(() => {
             console.log("🔄 NEW ROUND");
             timersRef.current = {}; // Reset flags
+            roundCounterRef.current += 1;
             setGameState({
               phase: "OPEN_BETS",
-              roundId: "demo_" + Date.now(),
+              roundId: roundCounterRef.current,
               timeLeft: 15,
               diceValue: null,
               winner: null,
@@ -133,13 +158,46 @@ export function useGame() {
     [],
   );
 
+  // Fetch game history from API
+  const fetchHistory = useCallback(async (limit = 20, offset = 0) => {
+    setHistoryLoading(true);
+    try {
+      const data = await apiService.getGameHistory(limit, offset);
+      if (data.history && Array.isArray(data.history)) {
+        // Transform API response to match expected format
+        const formattedHistory = data.history.map((item) => ({
+          round: item.round,
+          result: item.result,
+          dice: item.dice,
+          profit: item.profit,
+          timestamp: item.timestamp,
+        }));
+        setHistory(formattedHistory);
+      }
+    } catch (error) {
+      console.error("Failed to fetch history:", error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  // Load history on mount
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
   return {
     gameState,
     balance,
     myBet,
+    history,
+    demoHistory,
+    recentResults,
+    historyLoading,
     isConnected,
     placeBet,
     updateGameState,
+    fetchHistory,
     handleBetResult: () => {},
     setIsConnected: () => {},
   };

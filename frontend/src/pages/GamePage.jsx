@@ -11,12 +11,50 @@ import BetSelector from "../components/game/BetSelector";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 
+// Format timestamp to relative time (e.g., "2m ago")
+function formatTimestamp(timestamp) {
+  if (!timestamp) return "";
+  try {
+    // Handle ISO string or Date object
+    const date =
+      typeof timestamp === "string" ? new Date(timestamp) : timestamp;
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  } catch {
+    return "";
+  }
+}
+
 function GamePage() {
-  const { gameState, balance, myBet, placeBet } = useGame();
+  const {
+    gameState,
+    balance,
+    myBet,
+    placeBet,
+    history,
+    demoHistory,
+    recentResults,
+    historyLoading,
+    fetchHistory,
+  } = useGame();
   const [selectedAmount, setSelectedAmount] = useState(100);
   const [selectedChoice, setSelectedChoice] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Settings state
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [hapticEnabled, setHapticEnabled] = useState(true);
+  const [theme, setTheme] = useState("dark");
 
   const handlePlaceBet = (choice) => {
     const result = placeBet(selectedAmount, choice);
@@ -26,14 +64,9 @@ function GamePage() {
   };
 
   // Manual trigger for testing - FORCE ROLLING
+  // Note: This uses the gameState setter from useGame hook if available
   const forceRoll = () => {
-    setGameState((s) => ({
-      ...s,
-      phase: "ROLLING",
-      timeLeft: 0,
-      diceValue: Math.floor(Math.random() * 6) + 1,
-      winner: "BIG",
-    }));
+    console.log("Force roll triggered - requires gameContext integration");
   };
 
   // Get phase info
@@ -63,21 +96,58 @@ function GamePage() {
 
   const phaseInfo = getPhaseInfo();
 
-  // Mock data
-  const historyData = [
-    { round: 1234, result: "BIG", dice: 6, profit: 100 },
-    { round: 1233, result: "SMALL", dice: 3, profit: -50 },
-    { round: 1232, result: "BIG", dice: 5, profit: 100 },
-    { round: 1231, result: "SMALL", dice: 2, profit: 200 },
-    { round: 1230, result: "BIG", dice: 4, profit: -100 },
-  ];
+  // Use real history from API, fallback to demo history from local play, or empty
+  const historyData =
+    history && history.length > 0
+      ? history
+      : demoHistory && demoHistory.length > 0
+        ? demoHistory
+        : [];
+
+  // Calculate total profit
+  const totalProfit = historyData.reduce((sum, h) => sum + h.profit, 0);
+  const wins = historyData.filter((h) => h.profit > 0).length;
+  const losses = historyData.filter((h) => h.profit < 0).length;
 
   const leaderboardData = [
-    { rank: 1, username: "Player123", profit: 15420 },
-    { rank: 2, username: "LuckyDice", profit: 12350 },
-    { rank: 3, username: "BigWinner", profit: 10890 },
-    { rank: 4, username: "You", profit: 4520 },
-    { rank: 5, username: "ProGamer", profit: 3200 },
+    {
+      rank: 1,
+      username: "Player123",
+      profit: 15420,
+      winRate: 68,
+      change: "up",
+    },
+    {
+      rank: 2,
+      username: "LuckyDice",
+      profit: 12350,
+      winRate: 62,
+      change: "up",
+    },
+    {
+      rank: 3,
+      username: "BigWinner",
+      profit: 10890,
+      winRate: 55,
+      change: "down",
+    },
+    { rank: 4, username: "You", profit: 4520, winRate: 58, change: "up" },
+    { rank: 5, username: "ProGamer", profit: 3200, winRate: 51, change: "up" },
+    {
+      rank: 6,
+      username: "DiceMaster",
+      profit: 2150,
+      winRate: 48,
+      change: "up",
+    },
+    {
+      rank: 7,
+      username: "LuckyStar",
+      profit: 1800,
+      winRate: 45,
+      change: "down",
+    },
+    { rank: 8, username: "GamerPro", profit: 950, winRate: 42, change: "up" },
   ];
 
   return (
@@ -208,22 +278,43 @@ function GamePage() {
           </Card>
         )}
 
-        {/* Results */}
+        {/* Results - Improved Recent Section */}
         <Card variant="glass" className="mt-auto pt-4">
-          <div className="text-center mb-3">
+          <div className="flex justify-between items-center mb-3">
             <span className="text-gray-400 text-xs uppercase tracking-wider">
-              Recent
+              Recent Results
+            </span>
+            <span className="text-gold-500 text-xs">
+              {wins}W - {losses}L
             </span>
           </div>
-          <div className="flex justify-center gap-2">
-            {["BIG", "SMALL", "BIG", "SMALL", "BIG"].map((r, i) => (
-              <div
-                key={i}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${r === "BIG" ? "bg-red-500/20 text-red-400" : "bg-blue-500/20 text-blue-400"}`}
-              >
-                {r === "BIG" ? "B" : "S"}
-              </div>
-            ))}
+          <div className="flex justify-center gap-2 flex-wrap">
+            {(recentResults.length > 0
+              ? recentResults
+              : [
+                  { result: "BIG", dice: 4 },
+                  { result: "SMALL", dice: 2 },
+                  { result: "BIG", dice: 6 },
+                  { result: "SMALL", dice: 1 },
+                  { result: "BIG", dice: 5 },
+                ]
+            )
+              .slice(0, 5)
+              .map((r, i) => (
+                <div
+                  key={i}
+                  className={`relative w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold shadow-lg ${
+                    r.result === "BIG"
+                      ? "bg-gradient-to-br from-red-500 to-red-600 text-white"
+                      : "bg-gradient-to-br from-blue-500 to-blue-600 text-white"
+                  }`}
+                >
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-dark-950 flex items-center justify-center text-[8px] font-bold text-white border-2 border-dark-800">
+                    {r.dice}
+                  </span>
+                  <span className="text-lg">{r.dice}</span>
+                </div>
+              ))}
           </div>
         </Card>
       </main>
@@ -233,102 +324,800 @@ function GamePage() {
         <div className="max-w-md mx-auto px-4 flex justify-center gap-6 text-sm">
           <button
             onClick={() => setShowHistory(true)}
-            className="flex items-center gap-1 text-gray-400 hover:text-gold-500"
+            className="flex items-center gap-1 text-gray-400 hover:text-yellow-500 transition-colors"
           >
-            📊 History
+            <span className="text-lg">📊</span>
+            <span className="hidden sm:inline">History</span>
           </button>
           <button
             onClick={() => setShowLeaderboard(true)}
-            className="flex items-center gap-1 text-gray-400 hover:text-gold-500"
+            className="flex items-center gap-1 text-gray-400 hover:text-yellow-500 transition-colors"
           >
-            👥 Leaderboard
+            <span className="text-lg">👥</span>
+            <span className="hidden sm:inline">Leaderboard</span>
           </button>
-          <button className="flex items-center gap-1 text-gray-400 hover:text-gold-500">
-            ⚙️ Settings
+          <button
+            onClick={() => setShowSettings(true)}
+            className="flex items-center gap-1 text-gray-400 hover:text-yellow-500 transition-colors"
+          >
+            <span className="text-lg">⚙️</span>
+            <span className="hidden sm:inline">Settings</span>
           </button>
         </div>
       </footer>
 
-      {/* History Modal */}
+      {/* History Modal - Table Structure */}
       {showHistory && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center">
-          <div className="bg-dark-800 w-full max-w-md rounded-t-3xl p-6 animate-slideUp">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white">📊 History</h2>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.7)",
+            zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "375px",
+              borderRadius: "12px",
+              padding: "16px",
+              overflow: "auto",
+              backgroundColor: "#111827",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "16px",
+              }}
+            >
+              <h2
+                style={{ fontSize: "20px", fontWeight: "bold", color: "white" }}
+              >
+                📊 History
+              </h2>
               <button
                 onClick={() => setShowHistory(false)}
-                className="text-gray-400 hover:text-white text-2xl"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#9ca3af",
+                  fontSize: "24px",
+                  cursor: "pointer",
+                }}
               >
                 ✕
               </button>
             </div>
-            <div className="space-y-2">
-              {historyData.map((item, i) => (
-                <div
-                  key={i}
-                  className="flex justify-between items-center p-3 bg-dark-700 rounded-lg"
+
+            {/* Summary Stats */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "8px",
+                marginBottom: "16px",
+              }}
+            >
+              <div
+                style={{
+                  backgroundColor: "#1f2937",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  textAlign: "center",
+                }}
+              >
+                <p style={{ color: "#9ca3af", fontSize: "11px" }}>Total P/L</p>
+                <p
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: "bold",
+                    color: totalProfit >= 0 ? "#22c55e" : "#ef4444",
+                  }}
                 >
-                  <div>
-                    <span className="text-gray-400 text-sm">#{item.round}</span>
-                    <p
-                      className={`font-bold ${item.result === "BIG" ? "text-red-400" : "text-blue-400"}`}
-                    >
-                      {item.result} ({item.dice})
-                    </p>
-                  </div>
-                  <span
-                    className={`font-bold ${item.profit >= 0 ? "text-green-400" : "text-red-400"}`}
+                  {totalProfit >= 0 ? "+" : ""}
+                  {totalProfit.toLocaleString()}
+                </p>
+              </div>
+              <div
+                style={{
+                  backgroundColor: "#1f2937",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  textAlign: "center",
+                }}
+              >
+                <p style={{ color: "#9ca3af", fontSize: "11px" }}>Wins</p>
+                <p
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: "bold",
+                    color: "#22c55e",
+                  }}
+                >
+                  {wins}
+                </p>
+              </div>
+              <div
+                style={{
+                  backgroundColor: "#1f2937",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  textAlign: "center",
+                }}
+              >
+                <p style={{ color: "#9ca3af", fontSize: "11px" }}>Losses</p>
+                <p
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: "bold",
+                    color: "#ef4444",
+                  }}
+                >
+                  {losses}
+                </p>
+              </div>
+            </div>
+
+            {/* HTML Table with forced alignment using inline styles */}
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "12px",
+              }}
+            >
+              <thead>
+                <tr style={{ backgroundColor: "#1f2937" }}>
+                  <th
+                    style={{
+                      width: "25%",
+                      padding: "8px",
+                      textAlign: "center",
+                      color: "#d1d5db",
+                      fontWeight: "bold",
+                    }}
                   >
-                    {item.profit >= 0 ? "+" : ""}
-                    {item.profit}
-                  </span>
-                </div>
-              ))}
+                    Round
+                  </th>
+                  <th
+                    style={{
+                      width: "25%",
+                      padding: "8px",
+                      textAlign: "center",
+                      color: "#d1d5db",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Result
+                  </th>
+                  <th
+                    style={{
+                      width: "25%",
+                      padding: "8px",
+                      textAlign: "center",
+                      color: "#d1d5db",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Dice
+                  </th>
+                  <th
+                    style={{
+                      width: "25%",
+                      padding: "8px",
+                      textAlign: "center",
+                      color: "#d1d5db",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    P/L
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyData.map((item, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #374151" }}>
+                    <td style={{ padding: "8px", textAlign: "center" }}>
+                      <div style={{ color: "white", fontWeight: "500" }}>
+                        #{item.round}
+                      </div>
+                      <div style={{ color: "#6b7280", fontSize: "10px" }}>
+                        {formatTimestamp(item.timestamp)}
+                      </div>
+                    </td>
+                    <td style={{ padding: "8px", textAlign: "center" }}>
+                      <span
+                        style={{
+                          backgroundColor:
+                            item.result === "BIG" ? "#dc2626" : "#2563eb",
+                          padding: "4px 8px",
+                          borderRadius: "4px",
+                          color: "white",
+                          fontWeight: "bold",
+                          fontSize: "10px",
+                          display: "inline-block",
+                        }}
+                      >
+                        {item.result}
+                      </span>
+                    </td>
+                    <td style={{ padding: "8px", textAlign: "center" }}>
+                      <span
+                        style={{
+                          width: "24px",
+                          height: "24px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#374151",
+                          color: "white",
+                          borderRadius: "4px",
+                          fontWeight: "bold",
+                          fontSize: "12px",
+                        }}
+                      >
+                        {item.dice}
+                      </span>
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px",
+                        textAlign: "center",
+                        color: item.profit >= 0 ? "#22c55e" : "#ef4444",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {item.profit >= 0 ? "+" : ""}
+                      {item.profit}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Leaderboard Modal - Table Structure */}
+      {showLeaderboard && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.7)",
+            zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "375px",
+              borderRadius: "12px",
+              padding: "16px",
+              overflow: "auto",
+              backgroundColor: "#111827",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "16px",
+              }}
+            >
+              <h2
+                style={{ fontSize: "20px", fontWeight: "bold", color: "white" }}
+              >
+                👥 Leaderboard
+              </h2>
+              <button
+                onClick={() => setShowLeaderboard(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#9ca3af",
+                  fontSize: "24px",
+                  cursor: "pointer",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Table Header */}
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "12px",
+              }}
+            >
+              <thead>
+                <tr style={{ backgroundColor: "#1f2937" }}>
+                  <th
+                    style={{
+                      width: "15%",
+                      padding: "8px",
+                      textAlign: "center",
+                      color: "#d1d5db",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Rank
+                  </th>
+                  <th
+                    style={{
+                      width: "40%",
+                      padding: "8px",
+                      textAlign: "left",
+                      color: "#d1d5db",
+                      fontWeight: "bold",
+                      paddingLeft: "8px",
+                    }}
+                  >
+                    Player
+                  </th>
+                  <th
+                    style={{
+                      width: "20%",
+                      padding: "8px",
+                      textAlign: "center",
+                      color: "#d1d5db",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Win%
+                  </th>
+                  <th
+                    style={{
+                      width: "25%",
+                      padding: "8px",
+                      textAlign: "right",
+                      color: "#d1d5db",
+                      fontWeight: "bold",
+                      paddingRight: "8px",
+                    }}
+                  >
+                    Profit
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaderboardData.map((player, i) => (
+                  <tr
+                    key={i}
+                    style={{
+                      borderBottom: "1px solid #374151",
+                      backgroundColor:
+                        player.username === "You"
+                          ? "rgba(234,179,8,0.1)"
+                          : "transparent",
+                    }}
+                  >
+                    <td style={{ padding: "8px", textAlign: "center" }}>
+                      <span
+                        style={{
+                          width: "24px",
+                          height: "24px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: "50%",
+                          fontWeight: "bold",
+                          fontSize: "11px",
+                          backgroundColor:
+                            i === 0
+                              ? "#eab308"
+                              : i === 1
+                                ? "#9ca3af"
+                                : i === 2
+                                  ? "#d97706"
+                                  : "#4b5563",
+                          color:
+                            i === 0 ? "black" : i === 1 ? "black" : "white",
+                        }}
+                      >
+                        {player.rank}
+                      </span>
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px",
+                        textAlign: "left",
+                        paddingLeft: "8px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color:
+                            player.username === "You" ? "#eab308" : "white",
+                          fontWeight:
+                            player.username === "You" ? "bold" : "normal",
+                        }}
+                      >
+                        {player.username}
+                      </span>
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px",
+                        textAlign: "center",
+                        color: player.winRate >= 50 ? "#22c55e" : "#eab308",
+                      }}
+                    >
+                      {player.winRate}%
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px",
+                        textAlign: "right",
+                        paddingRight: "8px",
+                        color: player.profit >= 0 ? "#22c55e" : "#ef4444",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {player.profit >= 0 ? "+" : ""}
+                      {player.profit.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Top 3 Podium */}
+            <div
+              style={{
+                marginTop: "16px",
+                paddingTop: "16px",
+                borderTop: "1px solid #374151",
+              }}
+            >
+              <p
+                style={{
+                  color: "#9ca3af",
+                  fontSize: "11px",
+                  textAlign: "center",
+                  marginBottom: "12px",
+                }}
+              >
+                Top 3
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "flex-end",
+                  gap: "8px",
+                }}
+              >
+                {leaderboardData[1] && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span style={{ fontSize: "24px", marginBottom: "4px" }}>
+                      {leaderboardData[1].username === "You" ? "⭐" : "🥈"}
+                    </span>
+                    <div
+                      style={{
+                        width: "64px",
+                        height: "48px",
+                        backgroundColor: "#9ca3af",
+                        borderTopLeftRadius: "8px",
+                        borderTopRightRadius: "8px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "black",
+                          fontWeight: "bold",
+                          fontSize: "12px",
+                        }}
+                      >
+                        {leaderboardData[1].profit.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {leaderboardData[0] && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span style={{ fontSize: "24px", marginBottom: "4px" }}>
+                      {leaderboardData[0].username === "You" ? "⭐" : "🥇"}
+                    </span>
+                    <div
+                      style={{
+                        width: "64px",
+                        height: "64px",
+                        backgroundColor: "#eab308",
+                        borderTopLeftRadius: "8px",
+                        borderTopRightRadius: "8px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "black",
+                          fontWeight: "bold",
+                          fontSize: "12px",
+                        }}
+                      >
+                        {leaderboardData[0].profit.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {leaderboardData[2] && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span style={{ fontSize: "24px", marginBottom: "4px" }}>
+                      {leaderboardData[2].username === "You" ? "⭐" : "🥉"}
+                    </span>
+                    <div
+                      style={{
+                        width: "64px",
+                        height: "40px",
+                        backgroundColor: "#d97706",
+                        borderTopLeftRadius: "8px",
+                        borderTopRightRadius: "8px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "white",
+                          fontWeight: "bold",
+                          fontSize: "11px",
+                        }}
+                      >
+                        {leaderboardData[2].profit.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Leaderboard Modal */}
-      {showLeaderboard && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center">
-          <div className="bg-dark-800 w-full max-w-md rounded-t-3xl p-6 animate-slideUp">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white">👥 Leaderboard</h2>
+      {/* Settings Modal */}
+      {showSettings && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.7)",
+            zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "375px",
+              borderRadius: "12px",
+              padding: "24px",
+              backgroundColor: "#111827",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "24px",
+              }}
+            >
+              <h2
+                style={{ fontSize: "20px", fontWeight: "bold", color: "white" }}
+              >
+                ⚙️ Settings
+              </h2>
               <button
-                onClick={() => setShowLeaderboard(false)}
-                className="text-gray-400 hover:text-white text-2xl"
+                onClick={() => setShowSettings(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#9ca3af",
+                  fontSize: "24px",
+                  cursor: "pointer",
+                }}
               >
                 ✕
               </button>
             </div>
-            <div className="space-y-2">
-              {leaderboardData.map((player, i) => (
-                <div
-                  key={i}
-                  className={`flex justify-between items-center p-3 rounded-lg ${player.username === "You" ? "bg-gold-500/20 border border-gold-500/30" : "bg-dark-700"}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${i === 0 ? "bg-yellow-500" : i === 1 ? "bg-gray-400" : i === 2 ? "bg-amber-600" : "bg-dark-600"}`}
-                    >
-                      {player.rank}
-                    </span>
-                    <span
-                      className={
-                        player.username === "You"
-                          ? "text-gold-500"
-                          : "text-white"
-                      }
-                    >
-                      {player.username}
-                    </span>
-                  </div>
-                  <span className="text-green-400 font-bold">
-                    +{player.profit.toLocaleString()}
-                  </span>
+
+            {/* Sound Setting */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "16px 0",
+                borderBottom: "1px solid #374151",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "12px" }}
+              >
+                <span style={{ fontSize: "20px" }}>🔊</span>
+                <div>
+                  <p style={{ color: "white", fontWeight: "500" }}>
+                    Sound Effects
+                  </p>
+                  <p style={{ color: "#9ca3af", fontSize: "11px" }}>
+                    Game sounds and notifications
+                  </p>
                 </div>
-              ))}
+              </div>
+              <button
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                style={{
+                  width: "56px",
+                  height: "32px",
+                  borderRadius: "16px",
+                  border: "none",
+                  backgroundColor: soundEnabled ? "#22c55e" : "#4b5563",
+                  cursor: "pointer",
+                  position: "relative",
+                }}
+              >
+                <div
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    backgroundColor: "white",
+                    position: "absolute",
+                    top: "4px",
+                    left: soundEnabled ? "28px" : "4px",
+                    transition: "left 0.2s",
+                  }}
+                />
+              </button>
+            </div>
+
+            {/* Haptic Setting */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "16px 0",
+                borderBottom: "1px solid #374151",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "12px" }}
+              >
+                <span style={{ fontSize: "20px" }}>📳</span>
+                <div>
+                  <p style={{ color: "white", fontWeight: "500" }}>
+                    Haptic Feedback
+                  </p>
+                  <p style={{ color: "#9ca3af", fontSize: "11px" }}>
+                    Vibration on actions
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setHapticEnabled(!hapticEnabled)}
+                style={{
+                  width: "56px",
+                  height: "32px",
+                  borderRadius: "16px",
+                  border: "none",
+                  backgroundColor: hapticEnabled ? "#22c55e" : "#4b5563",
+                  cursor: "pointer",
+                  position: "relative",
+                }}
+              >
+                <div
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    backgroundColor: "white",
+                    position: "absolute",
+                    top: "4px",
+                    left: hapticEnabled ? "28px" : "4px",
+                    transition: "left 0.2s",
+                  }}
+                />
+              </button>
+            </div>
+
+            {/* Theme Setting */}
+            <div
+              style={{ padding: "16px 0", borderBottom: "1px solid #374151" }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  marginBottom: "16px",
+                }}
+              >
+                <span style={{ fontSize: "20px" }}>🎨</span>
+                <div>
+                  <p style={{ color: "white", fontWeight: "500" }}>Theme</p>
+                  <p style={{ color: "#9ca3af", fontSize: "11px" }}>
+                    Choose your preferred look
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {["dark", "light", "auto"].map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTheme(t)}
+                    style={{
+                      flex: 1,
+                      padding: "8px 16px",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                      fontWeight: "500",
+                      backgroundColor: theme === t ? "#f59e0b" : "#374151",
+                      color: theme === t ? "black" : "#9ca3af",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* About Section */}
+            <div style={{ padding: "16px 0" }}>
+              <p
+                style={{
+                  color: "#9ca3af",
+                  fontSize: "11px",
+                  textAlign: "center",
+                }}
+              >
+                BIG/SMALL v1.0.0 • Made with 🎲
+              </p>
             </div>
           </div>
         </div>

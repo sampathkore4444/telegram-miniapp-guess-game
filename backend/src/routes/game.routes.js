@@ -46,14 +46,50 @@ router.get("/state", authMiddleware, async (req, res) => {
 router.get("/history", authMiddleware, async (req, res) => {
   try {
     const { user } = req;
-    const { limit = 20, offset = 0 } = req.query;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = parseInt(req.query.offset) || 0;
 
-    // In production, fetch from database
-    const history = [];
+    const prisma = req.app.get("prisma");
+    if (!prisma) {
+      return res.status(constants.HTTP_STATUS.SERVICE_UNAVAILABLE).json({
+        error: "Database not available",
+      });
+    }
 
-    res.json({
-      history,
+    // Fetch user's bets with round info
+    const bets = await prisma.bet.findMany({
+      where: { userId: user.userId },
+      include: {
+        round: {
+          select: {
+            id: true,
+            diceResult: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: { timestamp: "desc" },
+      take: limit,
+      skip: offset,
     });
+
+    // Transform to history format
+    const history = bets.map((bet) => ({
+      round: bet.roundId,
+      result: bet.choice,
+      dice: bet.round?.diceResult || 0,
+      profit:
+        bet.result === "WIN"
+          ? bet.payout - bet.amount
+          : bet.result === "LOSE"
+            ? -bet.amount
+            : 0,
+      timestamp:
+        bet.round?.createdAt?.toISOString() || bet.timestamp.toISOString(),
+      status: bet.result || "PENDING",
+    }));
+
+    res.json({ history });
   } catch (error) {
     console.error("[Game] Get history error:", error);
     res.status(constants.HTTP_STATUS.INTERNAL_ERROR).json({

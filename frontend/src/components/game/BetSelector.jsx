@@ -8,25 +8,24 @@ function BetSelector({ selectedAmount, onSelectAmount, disabled = false }) {
   const betAmounts = [50, 100, 200, 500];
 
   return (
-    <div className="flex items-center justify-center gap-2">
-      <div className="flex gap-2">
-        {betAmounts.map((amount) => (
-          <button
-            key={amount}
-            onClick={() => onSelectAmount(amount)}
-            disabled={disabled}
-            className={clsx(
-              "px-4 py-2 rounded-lg font-medium transition-all duration-200 min-w-[60px]",
-              selectedAmount === amount
-                ? "bg-gold-500 text-dark-900 shadow-lg shadow-gold-500/30 scale-105"
-                : "bg-dark-700 text-gray-300 hover:bg-dark-600 hover:scale-105",
-              disabled && "opacity-50 cursor-not-allowed",
-            )}
-          >
-            {amount}
-          </button>
-        ))}
-      </div>
+    <div className="flex items-center justify-center gap-3">
+      {betAmounts.map((amount) => (
+        <button
+          key={amount}
+          onClick={() => onSelectAmount(amount)}
+          disabled={disabled}
+          className={clsx(
+            "w-16 h-16 rounded-xl font-bold text-base flex flex-col items-center justify-center gap-0 transition-all duration-200",
+            selectedAmount === amount
+              ? "bg-gradient-to-br from-amber-500 to-yellow-600 text-gray-900 shadow-lg shadow-amber-500/40 scale-110 border-2 border-amber-400"
+              : "bg-gradient-to-br from-gray-700 to-gray-800 text-gray-200 hover:from-gray-600 hover:to-gray-700 border-2 border-gray-600",
+            disabled && "opacity-50 cursor-not-allowed",
+          )}
+        >
+          <span>✦</span>
+          <span>{amount}</span>
+        </button>
+      ))}
     </div>
   );
 }
