@@ -25,22 +25,37 @@ function GamePage() {
     }
   };
 
+  // Manual trigger for testing - FORCE ROLLING
+  const forceRoll = () => {
+    setGameState((s) => ({
+      ...s,
+      phase: "ROLLING",
+      timeLeft: 0,
+      diceValue: Math.floor(Math.random() * 6) + 1,
+      winner: "BIG",
+    }));
+  };
+
   // Get phase info
   const getPhaseInfo = () => {
+    console.log("Current phase:", gameState.phase); // Debug log
     switch (gameState.phase) {
       case "OPEN_BETS":
         return { text: "🎯 Place Your Bet!", color: "text-green-400" };
       case "LOCKED":
         return { text: "🔒 Bets Closed", color: "text-red-400" };
       case "ROLLING":
-        return { text: "🎲 Rolling...", color: "text-gold-500" };
+        return {
+          text: "🎲🎲 ROLLING NOW! 🎲🎲",
+          color: "text-yellow-400 text-2xl animate-pulse",
+        };
       case "RESULT_CALCULATED":
         return {
           text: "🎉 Result: " + (gameState.winner || ""),
           color: "text-gold-500",
         };
       case "SETTLEMENT":
-        return { text: "💰 Settling...", color: "text-green-400" };
+        return { text: "💰 Settling bet...", color: "text-green-400" };
       default:
         return { text: "⏳ Waiting...", color: "text-gray-400" };
     }

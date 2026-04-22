@@ -1,7 +1,6 @@
 /**
- * useGame Hook - Demo mode with proper game loop timers
+ * useGame Hook - Simple game WITHOUT duplicates
  */
-
 import { useState, useCallback, useEffect, useRef } from "react";
 
 export function useGame() {
@@ -17,122 +16,122 @@ export function useGame() {
   const [myBet, setMyBet] = useState(null);
   const [isConnected] = useState(true);
 
-  // Use ref to track bet in intervals (avoids stale closure)
   const myBetRef = useRef(null);
   const balanceRef = useRef(1000);
+  const timersRef = useRef({});
 
-  // Keep ref in sync with state
   useEffect(() => {
     myBetRef.current = myBet;
-    if (myBet) {
-      balanceRef.current = balance;
-    }
+    balanceRef.current = balance;
   }, [myBet, balance]);
 
-  // Game loop - uses ref to track state without causing re-renders in timer
+  // Single game loop WITHOUT duplicates - uses phase transitions properly
   useEffect(() => {
-    let currentDiceRoll = null;
-    let currentWinner = null;
-    const timers = [];
+    console.log("🔄 Game started");
 
-    // Main countdown timer - counts down every 1 second during OPEN_BETS
-    const countdownTimer = setInterval(() => {
+    const tick = () => {
       setGameState((s) => {
-        if (s.phase !== "OPEN_BETS") return s;
+        // Phase: OPEN_BETS - countdown
+        if (s.phase === "OPEN_BETS") {
+          if (s.timeLeft > 0) {
+            return { ...s, timeLeft: s.timeLeft - 1 };
+          } else {
+            // Time's up - roll dice
+            const dice = Math.floor(Math.random() * 6) + 1;
+            const winner = dice <= 3 ? "SMALL" : "BIG";
+            console.log("🎲 ROLLING!:", dice, winner);
+            return {
+              ...s,
+              phase: "ROLLING",
+              timeLeft: 0,
+              diceValue: dice,
+              winner,
+            };
+          }
+        }
 
-        const newTime = s.timeLeft - 1;
-        if (newTime <= 0) {
-          // Time's up - generate dice result
-          currentDiceRoll = Math.floor(Math.random() * 6) + 1;
-          currentWinner = currentDiceRoll <= 3 ? "SMALL" : "BIG";
-          console.log(
-            "🎲 Rolling! Dice:",
-            currentDiceRoll,
-            "Winner:",
-            currentWinner,
-          );
-          return {
-            ...s,
-            phase: "ROLLING",
-            timeLeft: 0,
-            diceValue: currentDiceRoll,
-            winner: currentWinner,
-          };
+        // Phase: Rolling -> result after delay
+        if (s.phase === "ROLLING" && !timersRef.current.resultPending) {
+          timersRef.current.resultPending = true;
+          setTimeout(() => {
+            console.log("📊 RESULT:", s.diceValue, s.winner);
+            setGameState((s2) => ({ ...s2, phase: "RESULT_CALCULATED" }));
+          }, 3000);
         }
-        return { ...s, timeLeft: newTime };
-      });
-    }, 1000);
-    timers.push(countdownTimer);
 
-    // Phase transition watcher - checks every 500ms for phase changes
-    const phaseWatcher = setInterval(() => {
-      setGameState((s) => {
-        // ROLLING -> RESULT_CALCULATED after ~3s
-        if (s.phase === "ROLLING" && s.diceValue) {
-          console.log("Result:", s.diceValue, s.winner);
-          return { ...s, phase: "RESULT_CALCULATED" };
+        // Phase: RESULT -> settlement after delay
+        if (
+          s.phase === "RESULT_CALCULATED" &&
+          !timersRef.current.settlePending
+        ) {
+          timersRef.current.settlePending = true;
+          setTimeout(() => {
+            console.log("💰 SETTLEMENT");
+            setGameState((s3) => ({ ...s3, phase: "SETTLEMENT" }));
+          }, 3000);
         }
-        // RESULT_CALCULATED -> SETTLEMENT after ~3s
-        if (s.phase === "RESULT_CALCULATED") {
-          return { ...s, phase: "SETTLEMENT" };
-        }
-        // SETTLEMENT -> Calculate winnings and new round
-        if (s.phase === "SETTLEMENT") {
-          // Use ref to get current bet value
-          const currentBet = myBetRef.current;
-          console.log("Settling bet:", currentBet, "Winner:", s.winner);
-          if (currentBet && s.winner) {
-            const playerWon = currentBet.choice === s.winner;
-            if (playerWon) {
-              balanceRef.current = balanceRef.current + currentBet.amount;
+
+        // Phase: SETTLEMENT - process win/lose, then new round
+        if (s.phase === "SETTLEMENT" && !timersRef.current.newRoundPending) {
+          timersRef.current.newRoundPending = true;
+
+          // Process bet
+          const bet = myBetRef.current;
+          if (bet && s.winner) {
+            if (bet.choice === s.winner) {
+              balanceRef.current = balanceRef.current + bet.amount;
               setBalance(balanceRef.current);
-              setMyBet({ ...currentBet, status: "WIN" });
-              console.log("🎉 Won!", currentBet.amount);
+              setMyBet({ ...bet, status: "WIN" });
+              console.log("🎉 WIN!", bet.amount);
             } else {
-              setMyBet({ ...currentBet, status: "LOSE" });
-              console.log("❌ Lost");
+              setMyBet({ ...bet, status: "LOSE" });
+              console.log("❌ LOSE");
             }
           }
-          console.log("New round starting...");
-          setMyBet(null);
-          return {
-            phase: "OPEN_BETS",
-            roundId: "demo_" + Date.now(),
-            timeLeft: 15,
-            diceValue: null,
-            winner: null,
-          };
+
+          // New round
+          setTimeout(() => {
+            console.log("🔄 NEW ROUND");
+            timersRef.current = {}; // Reset flags
+            setGameState({
+              phase: "OPEN_BETS",
+              roundId: "demo_" + Date.now(),
+              timeLeft: 15,
+              diceValue: null,
+              winner: null,
+            });
+          }, 3000);
         }
+
         return s;
       });
-    }, 500);
-    timers.push(phaseWatcher);
-
-    return () => {
-      timers.forEach((t) => clearInterval(t));
     };
+
+    // Single timer - NOT multiple
+    const intervalId = setInterval(tick, 1000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
-  // Place bet
   const placeBet = useCallback(
     (amount, choice) => {
-      if (gameState.phase !== "OPEN_BETS") {
+      if (gameState.phase !== "OPEN_BETS")
         return { success: false, error: "Betting closed" };
-      }
-      if (balance < amount) {
+      if (balance < amount)
         return { success: false, error: "Insufficient balance" };
-      }
 
       setBalance((prev) => prev - amount);
       setMyBet({ amount, choice, status: "pending" });
+      console.log("💰 Bet:", choice, amount);
       return { success: true };
     },
     [gameState.phase, balance],
   );
 
-  const updateGameState = useCallback((newState) => {
-    setGameState((prev) => ({ ...prev, ...newState }));
-  }, []);
+  const updateGameState = useCallback(
+    (ns) => setGameState((p) => ({ ...p, ...ns })),
+    [],
+  );
 
   return {
     gameState,

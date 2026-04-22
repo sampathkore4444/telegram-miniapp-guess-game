@@ -1,217 +1,266 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 /**
- * DiceArea - Professional animated dice display with rich visuals
+ * DiceArea - REAL CASINO-STYLE animated dice WITH ANIMATION
  */
 function DiceArea({ diceValue, phase, winner }) {
   const [displayValue, setDisplayValue] = useState(null);
-  const [isRolling, setIsRolling] = useState(false);
-  const [resultDots, setResultDots] = useState([]);
-  const [shakeCount, setShakeCount] = useState(0);
 
   const isRollingPhase = phase === "ROLLING";
   const hasResult = phase === "RESULT_CALCULATED" || phase === "SETTLEMENT";
 
-  // Handle rolling animation
   useEffect(() => {
     if (isRollingPhase) {
-      setIsRolling(true);
-      setDisplayValue(null);
-      setShakeCount(0);
-
-      // Rapid shake animation
-      const shakeInterval = setInterval(() => {
-        setShakeCount((prev) => (prev + 1) % 10);
+      let count = 0;
+      const spin = setInterval(() => {
         setDisplayValue(Math.floor(Math.random() * 6) + 1);
-      }, 80);
-
-      // Stop after 2.5 seconds
-      setTimeout(() => {
-        clearInterval(shakeInterval);
-        setIsRolling(false);
-        setShakeCount(0);
-        // Set final value
-        const finalValue = diceValue || Math.floor(Math.random() * 6) + 1;
-        setDisplayValue(finalValue);
-      }, 2500);
-
-      return () => clearInterval(shakeInterval);
-    } else if (diceValue) {
+        count++;
+        if (count > 20) {
+          clearInterval(spin);
+          setDisplayValue(diceValue);
+        }
+      }, 120);
+      return () => clearInterval(spin);
+    } else {
       setDisplayValue(diceValue);
     }
   }, [isRollingPhase, diceValue]);
 
-  // Calculate result dots
-  useEffect(() => {
-    if (displayValue) {
-      const faces = {
-        1: [[0, 1, 0]],
-        2: [
-          [1, 0, 0],
-          [0, 0, 1],
-        ],
-        3: [
-          [1, 0, 0],
-          [0, 1, 0],
-          [0, 0, 1],
-        ],
-        4: [
-          [1, 0, 1],
-          [0, 0, 0],
-          [1, 0, 1],
-        ],
-        5: [
-          [1, 0, 1],
-          [0, 1, 0],
-          [1, 0, 1],
-        ],
-        6: [
-          [1, 0, 1],
-          [1, 0, 1],
-          [1, 0, 1],
-        ],
-      };
-      const allDots = [];
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-          if (faces[displayValue]?.[row]?.[col]) {
-            allDots.push({ r: row, c: col });
-          }
-        }
-      }
-      setResultDots(allDots);
-    }
-  }, [displayValue]);
+  const getDots = (val) => {
+    const faces = {
+      1: [[0, 1, 0]],
+      2: [
+        [1, 0, 0],
+        [0, 0, 1],
+      ],
+      3: [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ],
+      4: [
+        [1, 0, 1],
+        [0, 0, 0],
+        [1, 0, 1],
+      ],
+      5: [
+        [1, 0, 1],
+        [0, 1, 0],
+        [1, 0, 1],
+      ],
+      6: [
+        [1, 0, 1],
+        [1, 0, 1],
+        [1, 0, 1],
+      ],
+    };
+    const dots = [];
+    for (let r = 0; r < 3; r++)
+      for (let c = 0; c < 3; c++) if (faces[val]?.[r]?.[c]) dots.push({ r, c });
+    return dots;
+  };
 
-  const getDotStyle = (r, c) => ({
-    position: "absolute",
+  const dots = displayValue ? getDots(displayValue) : [];
+  const dotPos = (r, c) => ({
     top: `${20 + r * 30}%`,
     left: `${20 + c * 30}%`,
   });
+  const isBig = winner === "BIG";
+  const isSmall = winner === "SMALL";
 
-  // Get shake transform
-  const getShakeTransform = () => {
-    if (!isRolling) return "none";
-    const offset = Math.sin((shakeCount * Math.PI) / 2) * 8;
-    return `translate(${offset}px, ${offset * 0.5}px) rotate(${shakeCount * 15}deg)`;
+  // Get colors
+  const getBgColor = () => {
+    if (isRollingPhase)
+      return "linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #ea580c 100%)";
+    if (isBig)
+      return "linear-gradient(135deg, #dc2626 0%, #ef4444 50%, #b91c1c 100%)";
+    if (isSmall)
+      return "linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #1d4ed8 100%)";
+    return "linear-gradient(135deg, #f3f4f6 0%, #d1d5db 100%)";
+  };
+
+  const getBorderColor = () => {
+    if (isRollingPhase) return "#fcd34d";
+    if (isBig) return "#fca5a5";
+    if (isSmall) return "#93c5fd";
+    return "#e5e7eb";
+  };
+
+  // Inline styles for guaranteed animation
+  const rollingStyle = {
+    animation: "spin 0.5s linear infinite",
+  };
+
+  const bounceStyle = {
+    animation: "bounce 0.6s ease-in-out infinite",
   };
 
   return (
-    <div className="relative w-56 h-56 mx-auto">
-      {/* Rolling indicator with glow effect */}
+    <div
+      style={{
+        width: "280px",
+        height: "280px",
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {/* ROLLING PHASE */}
       {isRollingPhase && (
-        <div className="absolute -top-10 left-1/2 -translate-x-1/2">
-          <div className="px-6 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center gap-2 shadow-lg animate-pulse">
-            <span className="text-2xl animate-spin">🎲</span>
-            <span className="text-white font-bold text-lg">ROLLING</span>
-            <span className="text-2xl animate-spin">🎲</span>
-          </div>
-        </div>
-      )}
-
-      {/* Dice container with glow */}
-      <div
-        className={`
-          absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-          w-32 h-32 rounded-3xl flex items-center justify-center
-          transition-all duration-200
-          ${
-            isRollingPhase
-              ? "bg-gradient-to-br from-yellow-300 via-yellow-400 to-orange-400 shadow-[0_0_60px_rgba(251,191,36,0.9)]"
-              : hasResult && winner === "BIG"
-                ? "bg-gradient-to-br from-red-400 to-red-600 shadow-[0_0_50px_rgba(239,68,68,0.7)]"
-                : hasResult && winner === "SMALL"
-                  ? "bg-gradient-to-br from-blue-400 to-blue-600 shadow-[0_0_50px_rgba(59,130,246,0.7)]"
-                  : "bg-gradient-to-br from-white to-gray-100 shadow-[0_20px_60px_rgba(0,0,0,0.4)]"
-          }
-        `}
-        style={{
-          transform: isRollingPhase
-            ? `${getShakeTransform()} scale(1.15)`
-            : hasResult
-              ? "scale(1.1)"
-              : "scale(1)",
-        }}
-      >
-        {displayValue ? (
-          // Show dice dots with animation
-          <div className="relative w-24 h-24 animate-scaleIn">
-            {resultDots.map((dot, i) => (
-              <div
-                key={i}
-                className={`absolute w-6 h-6 rounded-full shadow-inner ${
-                  isRollingPhase
-                    ? "bg-red-600"
-                    : winner === "BIG"
-                      ? "bg-red-800"
-                      : winner === "SMALL"
-                        ? "bg-blue-800"
-                        : "bg-gray-700"
-                }`}
-                style={getDotStyle(dot.r, dot.c)}
-              />
-            ))}
-          </div>
-        ) : isRollingPhase ? (
-          // Rolling - show shaking dots effect
-          <div className="flex gap-1">
-            <div
-              className="w-3 h-3 bg-red-700 rounded-full animate-bounce"
-              style={{ animationDelay: "0ms" }}
-            />
-            <div
-              className="w-3 h-3 bg-yellow-700 rounded-full animate-bounce"
-              style={{ animationDelay: "100ms" }}
-            />
-            <div
-              className="w-3 h-3 bg-red-700 rounded-full animate-bounce"
-              style={{ animationDelay: "200ms" }}
-            />
-          </div>
-        ) : (
-          // Waiting - show question mark
-          <span className="text-5xl font-bold text-gray-300">?</span>
-        )}
-      </div>
-
-      {/* Result badge */}
-      {hasResult && winner && (
-        <div className="absolute -top-2 -right-2 z-10 animate-scaleIn">
-          <div
-            className={`
-              px-5 py-2 rounded-full text-xl font-bold shadow-xl
-              ${
-                winner === "BIG"
-                  ? "bg-gradient-to-r from-red-500 to-red-600 text-white border-2 border-red-400"
-                  : "bg-gradient-to-r from-blue-500 to-blue-600 text-white border-2 border-blue-400"
-              }
-            `}
-          >
-            {winner === "BIG" ? "🔴 BIG" : "🔵 SMALL"}
-          </div>
-        </div>
-      )}
-
-      {/* Result overlay */}
-      {hasResult && winner && (
         <div
-          className={`
-            absolute inset-0 flex items-center justify-center rounded-3xl 
-            animate-fadeIn backdrop-blur-sm
-            ${winner === "BIG" ? "bg-red-500/20" : "bg-blue-500/20"}
-          `}
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+          }}
         >
-          <span
-            className={`
-              text-4xl font-black tracking-wider animate-bounce
-              ${
-                winner === "BIG"
-                  ? "text-red-500 drop-shadow-lg"
-                  : "text-blue-500 drop-shadow-lg"
-              }
-            `}
+          {/* Spinning dice emoji */}
+          <div
+            style={{
+              width: "180px",
+              height: "180px",
+              borderRadius: "24px",
+              background:
+                "linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #ea580c 100%)",
+              boxShadow:
+                "0 0 60px rgba(251, 191, 36, 0.9), 0 20px 40px rgba(0,0,0,0.3)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "6px solid #fcd34d",
+              animation: "spin 0.3s linear infinite",
+            }}
           >
-            🎉 {winner} WINS!
+            <span style={{ fontSize: "100px", lineHeight: 1 }}>🎲</span>
+          </div>
+
+          {/* Rolling text with pulse */}
+          <div
+            style={{
+              marginTop: "24px",
+              padding: "12px 40px",
+              borderRadius: "50px",
+              background: "linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b)",
+              boxShadow: "0 8px 30px rgba(251, 191, 36, 0.6)",
+              border: "4px solid #fcd34d",
+              animation: "pulse 1s ease-in-out infinite",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "24px",
+                fontWeight: 900,
+                color: "white",
+                letterSpacing: "4px",
+                textShadow: "0 2px 4px rgba(0,0,0,0.3)",
+              }}
+            >
+              🎲 ROLLING 🎲
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* RESULT */}
+      {!isRollingPhase && hasResult && displayValue && (
+        <>
+          <div
+            style={{
+              width: "160px",
+              height: "160px",
+              borderRadius: "20px",
+              background: getBgColor(),
+              boxShadow:
+                "0 25px 50px rgba(0,0,0,0.4), inset 0 -8px 12px rgba(0,0,0,0.2)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: `6px solid ${getBorderColor()}`,
+              transition: "all 0.5s ease",
+            }}
+          >
+            <div
+              style={{ position: "relative", width: "112px", height: "112px" }}
+            >
+              {dots.map((d, i) => (
+                <div
+                  key={i}
+                  style={{
+                    position: "absolute",
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "50%",
+                    background: isBig
+                      ? "#7f1d1d"
+                      : isSmall
+                        ? "#1e3a8a"
+                        : "#1f2937",
+                    boxShadow: "inset 0 2px 4px rgba(0,0,0,0.3)",
+                    ...dotPos(d.r, d.c),
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Winner badge */}
+          <div
+            style={{
+              position: "absolute",
+              top: "-8px",
+              right: "-8px",
+              padding: "12px 20px",
+              borderRadius: "50px",
+              background: isBig ? "#dc2626" : "#2563eb",
+              border: `4px solid ${isBig ? "#fca5a5" : "#93c5fd"}`,
+              boxShadow: "0 8px 20px rgba(0,0,0,0.3)",
+              animation: "bounce 0.6s ease-in-out infinite",
+            }}
+          >
+            <span style={{ fontSize: "20px", fontWeight: 900, color: "white" }}>
+              {isBig ? "🔴 BIG" : "🔵 SMALL"}
+            </span>
+          </div>
+
+          {/* Big win text */}
+          <div style={{ position: "absolute", bottom: "-8px" }}>
+            <span
+              style={{
+                fontSize: "36px",
+                fontWeight: 900,
+                color: isBig ? "#dc2626" : "#2563eb",
+                textShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                animation: "bounce 0.6s ease-in-out infinite",
+              }}
+            >
+              🎉 {isBig ? "BIG WINS!" : "SMALL WINS!"}
+            </span>
+          </div>
+        </>
+      )}
+
+      {/* Waiting state */}
+      {!isRollingPhase && !hasResult && (
+        <div
+          style={{
+            width: "160px",
+            height: "160px",
+            borderRadius: "20px",
+            background: "linear-gradient(135deg, #f3f4f6 0%, #d1d5db 100%)",
+            boxShadow: "0 15px 35px rgba(0,0,0,0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "4px solid #e5e7eb",
+          }}
+        >
+          <span style={{ fontSize: "56px", fontWeight: 700, color: "#9ca3af" }}>
+            ?
           </span>
         </div>
       )}
