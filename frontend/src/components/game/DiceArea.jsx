@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from "react";
 
-/**
- * DiceArea - REAL CASINO-STYLE animated dice WITH ANIMATION
- */
 function DiceArea({ diceValue, phase, winner }) {
   const [displayValue, setDisplayValue] = useState(null);
-
   const isRollingPhase = phase === "ROLLING";
   const hasResult = phase === "RESULT_CALCULATED" || phase === "SETTLEMENT";
 
@@ -15,7 +11,7 @@ function DiceArea({ diceValue, phase, winner }) {
       const spin = setInterval(() => {
         setDisplayValue(Math.floor(Math.random() * 6) + 1);
         count++;
-        if (count > 20) {
+        if (count > 15) {
           clearInterval(spin);
           setDisplayValue(diceValue);
         }
@@ -27,7 +23,7 @@ function DiceArea({ diceValue, phase, winner }) {
   }, [isRollingPhase, diceValue]);
 
   const getDots = (val) => {
-    const faces = {
+    const f = {
       1: [[0, 1, 0]],
       2: [
         [1, 0, 0],
@@ -54,59 +50,41 @@ function DiceArea({ diceValue, phase, winner }) {
         [1, 0, 1],
       ],
     };
-    const dots = [];
+    let d = [];
     for (let r = 0; r < 3; r++)
-      for (let c = 0; c < 3; c++) if (faces[val]?.[r]?.[c]) dots.push({ r, c });
-    return dots;
+      for (let c = 0; c < 3; c++) if (f[val]?.[r]?.[c]) d.push({ r, c });
+    return d;
   };
-
   const dots = displayValue ? getDots(displayValue) : [];
-  const dotPos = (r, c) => ({
-    top: `${20 + r * 30}%`,
-    left: `${20 + c * 30}%`,
-  });
-  const isBig = winner === "BIG";
-  const isSmall = winner === "SMALL";
-
-  // Get colors
-  const getBgColor = () => {
-    if (isRollingPhase)
-      return "linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #ea580c 100%)";
-    if (isBig)
-      return "linear-gradient(135deg, #dc2626 0%, #ef4444 50%, #b91c1c 100%)";
-    if (isSmall)
-      return "linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #1d4ed8 100%)";
-    return "linear-gradient(135deg, #f3f4f6 0%, #d1d5db 100%)";
-  };
-
-  const getBorderColor = () => {
-    if (isRollingPhase) return "#fcd34d";
-    if (isBig) return "#fca5a5";
-    if (isSmall) return "#93c5fd";
-    return "#e5e7eb";
-  };
-
-  // Inline styles for guaranteed animation
-  const rollingStyle = {
-    animation: "spin 0.5s linear infinite",
-  };
-
-  const bounceStyle = {
-    animation: "bounce 0.6s ease-in-out infinite",
-  };
+  const dp = (r, c) => ({ top: `${20 + r * 30}%`, left: `${20 + c * 30}%` });
+  const isBig = winner === "BIG",
+    isSmall = winner === "SMALL";
+  const gBg = isRollingPhase
+    ? "linear-gradient(135deg,#fbbf24,#f59e0b,#ea580c)"
+    : isBig
+      ? "linear-gradient(135deg,#dc2626,#ef4444)"
+      : isSmall
+        ? "linear-gradient(135deg,#2563eb,#3b82f6)"
+        : "linear-gradient(135deg,#f3f4f6,#d1d5db)";
+  const gBor = isRollingPhase
+    ? "#fcd34d"
+    : isBig
+      ? "#fca5a5"
+      : isSmall
+        ? "#93c5fd"
+        : "#e5e7eb";
 
   return (
     <div
       style={{
-        width: "280px",
-        height: "280px",
+        width: "200px",
+        height: "200px",
         position: "relative",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      {/* ROLLING PHASE */}
       {isRollingPhase && (
         <div
           style={{
@@ -119,45 +97,39 @@ function DiceArea({ diceValue, phase, winner }) {
             zIndex: 50,
           }}
         >
-          {/* Spinning dice emoji */}
           <div
             style={{
-              width: "180px",
-              height: "180px",
-              borderRadius: "24px",
-              background:
-                "linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #ea580c 100%)",
+              width: "100px",
+              height: "100px",
+              borderRadius: "16px",
+              background: gBg,
               boxShadow:
-                "0 0 60px rgba(251, 191, 36, 0.9), 0 20px 40px rgba(0,0,0,0.3)",
+                "0 0 40px rgba(251,191,36,0.8),0 15px 30px rgba(0,0,0,0.3)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              border: "6px solid #fcd34d",
+              border: `4px solid ${gBor}`,
               animation: "spin 0.3s linear infinite",
             }}
           >
-            <span style={{ fontSize: "100px", lineHeight: 1 }}>🎲</span>
+            <span style={{ fontSize: "60px", lineHeight: 1 }}>🎲</span>
           </div>
-
-          {/* Rolling text with pulse */}
           <div
             style={{
-              marginTop: "24px",
-              padding: "12px 40px",
-              borderRadius: "50px",
-              background: "linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b)",
-              boxShadow: "0 8px 30px rgba(251, 191, 36, 0.6)",
-              border: "4px solid #fcd34d",
+              marginTop: "12px",
+              padding: "6px 20px",
+              borderRadius: "30px",
+              background: "linear-gradient(90deg,#f59e0b,#fbbf24,#f59e0b)",
+              border: `3px solid ${gBor}`,
               animation: "pulse 1s ease-in-out infinite",
             }}
           >
             <span
               style={{
-                fontSize: "24px",
+                fontSize: "14px",
                 fontWeight: 900,
                 color: "white",
-                letterSpacing: "4px",
-                textShadow: "0 2px 4px rgba(0,0,0,0.3)",
+                letterSpacing: "2px",
               }}
             >
               🎲 ROLLING 🎲
@@ -165,76 +137,66 @@ function DiceArea({ diceValue, phase, winner }) {
           </div>
         </div>
       )}
-
-      {/* RESULT */}
       {!isRollingPhase && hasResult && displayValue && (
         <>
           <div
             style={{
-              width: "160px",
-              height: "160px",
-              borderRadius: "20px",
-              background: getBgColor(),
+              width: "100px",
+              height: "100px",
+              borderRadius: "14px",
+              background: gBg,
               boxShadow:
-                "0 25px 50px rgba(0,0,0,0.4), inset 0 -8px 12px rgba(0,0,0,0.2)",
+                "0 15px 30px rgba(0,0,0,0.3),inset 0 -5px 8px rgba(0,0,0,0.2)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              border: `6px solid ${getBorderColor()}`,
-              transition: "all 0.5s ease",
+              border: `4px solid ${gBor}`,
             }}
           >
             <div
-              style={{ position: "relative", width: "112px", height: "112px" }}
+              style={{ position: "relative", width: "70px", height: "70px" }}
             >
               {dots.map((d, i) => (
                 <div
                   key={i}
                   style={{
                     position: "absolute",
-                    width: "28px",
-                    height: "28px",
+                    width: "18px",
+                    height: "18px",
                     borderRadius: "50%",
                     background: isBig
                       ? "#7f1d1d"
                       : isSmall
                         ? "#1e3a8a"
                         : "#1f2937",
-                    boxShadow: "inset 0 2px 4px rgba(0,0,0,0.3)",
-                    ...dotPos(d.r, d.c),
+                    ...dp(d.r, d.c),
                   }}
                 />
               ))}
             </div>
           </div>
-
-          {/* Winner badge */}
           <div
             style={{
               position: "absolute",
-              top: "-8px",
-              right: "-8px",
-              padding: "12px 20px",
-              borderRadius: "50px",
+              top: "-6px",
+              right: "-6px",
+              padding: "6px 14px",
+              borderRadius: "30px",
               background: isBig ? "#dc2626" : "#2563eb",
-              border: `4px solid ${isBig ? "#fca5a5" : "#93c5fd"}`,
-              boxShadow: "0 8px 20px rgba(0,0,0,0.3)",
+              border: `3px solid ${gBor}`,
               animation: "bounce 0.6s ease-in-out infinite",
             }}
           >
-            <span style={{ fontSize: "20px", fontWeight: 900, color: "white" }}>
+            <span style={{ fontSize: "14px", fontWeight: 900, color: "white" }}>
               {isBig ? "🔴 BIG" : "🔵 SMALL"}
             </span>
           </div>
-
-          {/* Big win text */}
-          <div style={{ position: "absolute", bottom: "-8px" }}>
+          <div style={{ position: "absolute", bottom: "-6px" }}>
             <span
               style={{
-                fontSize: "36px",
+                fontSize: "24px",
                 fontWeight: 900,
                 color: isBig ? "#dc2626" : "#2563eb",
-                textShadow: "0 2px 8px rgba(0,0,0,0.2)",
                 animation: "bounce 0.6s ease-in-out infinite",
               }}
             >
@@ -243,23 +205,21 @@ function DiceArea({ diceValue, phase, winner }) {
           </div>
         </>
       )}
-
-      {/* Waiting state */}
       {!isRollingPhase && !hasResult && (
         <div
           style={{
-            width: "160px",
-            height: "160px",
-            borderRadius: "20px",
-            background: "linear-gradient(135deg, #f3f4f6 0%, #d1d5db 100%)",
-            boxShadow: "0 15px 35px rgba(0,0,0,0.3)",
+            width: "100px",
+            height: "100px",
+            borderRadius: "14px",
+            background: gBg,
+            boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            border: "4px solid #e5e7eb",
+            border: `3px solid ${gBor}`,
           }}
         >
-          <span style={{ fontSize: "56px", fontWeight: 700, color: "#9ca3af" }}>
+          <span style={{ fontSize: "40px", fontWeight: 700, color: "#9ca3af" }}>
             ?
           </span>
         </div>
@@ -267,5 +227,4 @@ function DiceArea({ diceValue, phase, winner }) {
     </div>
   );
 }
-
 export default DiceArea;
