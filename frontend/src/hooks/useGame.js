@@ -1,6 +1,5 @@
 /**
- * useGame Hook
- * Handles game state and actions with demo mode
+ * useGame Hook - Demo mode with proper game loop timers
  */
 
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -8,95 +7,113 @@ import { useState, useCallback, useEffect, useRef } from "react";
 export function useGame() {
   const [gameState, setGameState] = useState({
     phase: "OPEN_BETS",
-    roundId: null,
-    timeLeft: 8,
+    roundId: "demo_1",
+    timeLeft: 15,
     diceValue: null,
     winner: null,
   });
+
   const [balance, setBalance] = useState(1000);
   const [myBet, setMyBet] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected] = useState(true);
 
-  const timersRef = useRef([]);
+  // Use ref to track bet in intervals (avoids stale closure)
+  const myBetRef = useRef(null);
+  const balanceRef = useRef(1000);
 
-  // Demo mode - simulate full game cycle
+  // Keep ref in sync with state
   useEffect(() => {
-    // Start demo after mount
-    const startDemo = () => {
-      // OPEN_BETS -> time countdown
-      const timer1 = setTimeout(() => {
-        setGameState((prev) => ({ ...prev, timeLeft: 6 }));
-      }, 2000);
+    myBetRef.current = myBet;
+    if (myBet) {
+      balanceRef.current = balance;
+    }
+  }, [myBet, balance]);
 
-      const timer2 = setTimeout(() => {
-        setGameState((prev) => ({ ...prev, timeLeft: 4 }));
-      }, 4000);
+  // Game loop - uses ref to track state without causing re-renders in timer
+  useEffect(() => {
+    let currentDiceRoll = null;
+    let currentWinner = null;
+    const timers = [];
 
-      const timer3 = setTimeout(() => {
-        setGameState((prev) => ({ ...prev, timeLeft: 2 }));
-      }, 6000);
+    // Main countdown timer - counts down every 1 second during OPEN_BETS
+    const countdownTimer = setInterval(() => {
+      setGameState((s) => {
+        if (s.phase !== "OPEN_BETS") return s;
 
-      // LOCKED phase
-      const timer4 = setTimeout(() => {
-        setGameState((prev) => ({ ...prev, phase: "LOCKED", timeLeft: 0 }));
-      }, 8000);
+        const newTime = s.timeLeft - 1;
+        if (newTime <= 0) {
+          // Time's up - generate dice result
+          currentDiceRoll = Math.floor(Math.random() * 6) + 1;
+          currentWinner = currentDiceRoll <= 3 ? "SMALL" : "BIG";
+          console.log(
+            "🎲 Rolling! Dice:",
+            currentDiceRoll,
+            "Winner:",
+            currentWinner,
+          );
+          return {
+            ...s,
+            phase: "ROLLING",
+            timeLeft: 0,
+            diceValue: currentDiceRoll,
+            winner: currentWinner,
+          };
+        }
+        return { ...s, timeLeft: newTime };
+      });
+    }, 1000);
+    timers.push(countdownTimer);
 
-      // ROLLING phase - triggers dice animation
-      const timer5 = setTimeout(() => {
-        const diceRoll = Math.floor(Math.random() * 6) + 1;
-        const winnerRoll = diceRoll <= 3 ? "SMALL" : "BIG";
-        setGameState((prev) => ({ ...prev, phase: "ROLLING" }));
-
-        // After a delay, show result
-        setTimeout(() => {
-          setGameState((prev) => ({
-            ...prev,
-            phase: "RESULT_CALCULATED",
-            diceValue: diceRoll,
-            winner: winnerRoll,
-          }));
-        }, 2000);
-      }, 10000);
-
-      // SETTLEMENT and back to OPEN
-      const timer6 = setTimeout(() => {
-        setGameState((prev) => ({ ...prev, phase: "SETTLEMENT" }));
-      }, 14000);
-
-      const timer7 = setTimeout(() => {
-        // Reset for new round
-        setGameState({
-          phase: "OPEN_BETS",
-          roundId: "round_" + Date.now(),
-          timeLeft: 8,
-          diceValue: null,
-          winner: null,
-        });
-        setMyBet(null);
-        // Start cycle again
-        startDemo();
-      }, 16000);
-
-      timersRef.current = [
-        timer1,
-        timer2,
-        timer3,
-        timer4,
-        timer5,
-        timer6,
-        timer7,
-      ];
-    };
-
-    // Start the demo
-    startDemo();
+    // Phase transition watcher - checks every 500ms for phase changes
+    const phaseWatcher = setInterval(() => {
+      setGameState((s) => {
+        // ROLLING -> RESULT_CALCULATED after ~3s
+        if (s.phase === "ROLLING" && s.diceValue) {
+          console.log("Result:", s.diceValue, s.winner);
+          return { ...s, phase: "RESULT_CALCULATED" };
+        }
+        // RESULT_CALCULATED -> SETTLEMENT after ~3s
+        if (s.phase === "RESULT_CALCULATED") {
+          return { ...s, phase: "SETTLEMENT" };
+        }
+        // SETTLEMENT -> Calculate winnings and new round
+        if (s.phase === "SETTLEMENT") {
+          // Use ref to get current bet value
+          const currentBet = myBetRef.current;
+          console.log("Settling bet:", currentBet, "Winner:", s.winner);
+          if (currentBet && s.winner) {
+            const playerWon = currentBet.choice === s.winner;
+            if (playerWon) {
+              balanceRef.current = balanceRef.current + currentBet.amount;
+              setBalance(balanceRef.current);
+              setMyBet({ ...currentBet, status: "WIN" });
+              console.log("🎉 Won!", currentBet.amount);
+            } else {
+              setMyBet({ ...currentBet, status: "LOSE" });
+              console.log("❌ Lost");
+            }
+          }
+          console.log("New round starting...");
+          setMyBet(null);
+          return {
+            phase: "OPEN_BETS",
+            roundId: "demo_" + Date.now(),
+            timeLeft: 15,
+            diceValue: null,
+            winner: null,
+          };
+        }
+        return s;
+      });
+    }, 500);
+    timers.push(phaseWatcher);
 
     return () => {
-      timersRef.current.forEach((t) => clearTimeout(t));
+      timers.forEach((t) => clearInterval(t));
     };
   }, []);
 
-  // Place a bet
+  // Place bet
   const placeBet = useCallback(
     (amount, choice) => {
       if (gameState.phase !== "OPEN_BETS") {
@@ -106,28 +123,15 @@ export function useGame() {
         return { success: false, error: "Insufficient balance" };
       }
 
-      // Deduct balance locally (optimistic)
       setBalance((prev) => prev - amount);
       setMyBet({ amount, choice, status: "pending" });
-
       return { success: true };
     },
     [gameState.phase, balance],
   );
 
-  // Update game state from server
   const updateGameState = useCallback((newState) => {
     setGameState((prev) => ({ ...prev, ...newState }));
-  }, []);
-
-  // Handle bet result
-  const handleBetResult = useCallback((result) => {
-    if (result.result === "WIN") {
-      setBalance((prev) => prev + result.payout);
-      setMyBet((prev) => ({ ...prev, status: "WIN", payout: result.payout }));
-    } else {
-      setMyBet((prev) => ({ ...prev, status: "LOSE" }));
-    }
   }, []);
 
   return {
@@ -137,8 +141,8 @@ export function useGame() {
     isConnected,
     placeBet,
     updateGameState,
-    handleBetResult,
-    setIsConnected,
+    handleBetResult: () => {},
+    setIsConnected: () => {},
   };
 }
 
