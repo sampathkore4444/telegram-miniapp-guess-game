@@ -151,9 +151,9 @@ function GamePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-dark-900 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex flex-col">
       {/* Header */}
-      <header className="bg-dark-800/80 backdrop-blur-md border-b border-dark-700 sticky top-0 z-40">
+      <header className="bg-slate-900/90 backdrop-blur-md border-b border-slate-700 sticky top-0 z-40 shadow-lg">
         <div className="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <span className="text-2xl animate-bounce">🎲</span>
@@ -163,7 +163,7 @@ function GamePage() {
             <Badge variant="gold" className="text-xs">
               VIP 1
             </Badge>
-            <div className="bg-dark-700 px-3 py-1.5 rounded-lg flex items-center gap-2">
+            <div className="bg-slate-700/80 px-4 py-2 rounded-xl flex items-center gap-2 shadow-md">
               <span className="text-gold-500">💰</span>
               <span className="text-white font-semibold">
                 {balance.toLocaleString()}
@@ -176,7 +176,7 @@ function GamePage() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col p-4 max-w-md mx-auto w-full gap-4">
         {/* Phase Indicator */}
-        <Card variant="glass" className="text-center py-3">
+        <Card variant="glass" className="text-center py-4 bg-slate-800/50">
           <div
             className={`text-lg font-bold ${phaseInfo.color} ${gameState.phase === "ROLLING" ? "animate-pulse" : ""}`}
           >
@@ -187,7 +187,7 @@ function GamePage() {
         {/* Dice Area */}
         <Card
           variant="default"
-          className="flex-1 flex flex-col items-center justify-center py-8 min-h-[280px]"
+          className="flex-1 flex flex-col items-center justify-center py-8 min-h-[280px] bg-slate-800/80"
         >
           <DiceArea
             diceValue={gameState.diceValue}
@@ -279,7 +279,7 @@ function GamePage() {
         )}
 
         {/* Results - Improved Recent Section */}
-        <Card variant="glass" className="mt-auto pt-4">
+        <Card variant="glass" className="mt-auto pt-4 bg-slate-800/50">
           <div className="flex justify-between items-center mb-3">
             <span className="text-gray-400 text-xs uppercase tracking-wider">
               Recent Results
@@ -320,7 +320,7 @@ function GamePage() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-dark-800/80 backdrop-blur-md border-t border-dark-700 py-3">
+      <footer className="bg-slate-900/90 backdrop-blur-md border-t border-slate-700 py-3 shadow-lg">
         <div className="max-w-md mx-auto px-4 flex justify-center gap-6 text-sm">
           <button
             onClick={() => setShowHistory(true)}
